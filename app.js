@@ -1,4 +1,14 @@
-const STORAGE_KEY = "chip-game-state-v1";
+const STORAGE_KEY = "chip-game-state-v2";
+
+const COLOR_PRESETS = [
+  { value: "#c792ea", label: "Сиреневый" },
+  { value: "#f06292", label: "Розовый" },
+  { value: "#5dd39e", label: "Зелёный" },
+  { value: "#64b5f6", label: "Голубой" }
+];
+
+const GOOD_SOUNDS = ["music/success1.mp3", "music/success2.mp3", "music/success3.mp3"];
+const BAD_SOUNDS = ["musicbad/fail1.mp3", "musicbad/fail2.mp3", "musicbad/fail3.mp3"];
 
 const defaults = {
   targetScore: 20,
@@ -6,53 +16,42 @@ const defaults = {
   turn: 0,
   pawnIndex: 0,
   awaitingTaskDecision: false,
+  pawn: { shape: "circle", image: "" },
   cells: [
-    { id: crypto.randomUUID(), name: "Старт", color: "#ff9f5d", isStart: true },
-    { id: crypto.randomUUID(), name: "Роща", color: "#5dd39e", isStart: false },
-    { id: crypto.randomUUID(), name: "Река", color: "#64b5f6", isStart: false },
-    { id: crypto.randomUUID(), name: "Горы", color: "#c792ea", isStart: false },
-    { id: crypto.randomUUID(), name: "Пещера", color: "#f06292", isStart: false },
-    { id: crypto.randomUUID(), name: "Портал", color: "#ffd54f", isStart: false }
+    { id: crypto.randomUUID(), name: "Старт", color: "#c792ea", category: 1, isStart: true },
+    { id: crypto.randomUUID(), name: "Роща", color: "#5dd39e", category: 2, isStart: false },
+    { id: crypto.randomUUID(), name: "Река", color: "#64b5f6", category: 3, isStart: false },
+    { id: crypto.randomUUID(), name: "Пещера", color: "#f06292", category: 4, isStart: false }
   ],
-  tasks: []
+  tasks: [
+    {
+      id: crypto.randomUUID(),
+      color: "#5dd39e",
+      title: "Лесной квест",
+      description: "Назовите 3 вида деревьев.",
+      points: 3,
+      penalty: "Сделайте 5 хлопков над головой.",
+      image: "",
+      audio: ""
+    },
+    {
+      id: crypto.randomUUID(),
+      color: "#64b5f6",
+      title: "Речной квест",
+      description: "Скажите скороговорку без ошибок.",
+      points: 4,
+      penalty: "Назовите 5 стран за 10 секунд.",
+      image: "",
+      audio: ""
+    }
+  ]
 };
-
-defaults.tasks.push(
-  {
-    id: crypto.randomUUID(),
-    color: "#5dd39e",
-    title: "Лесной квест",
-    description: "Назовите 3 вида деревьев.",
-    points: 3,
-    penalty: "Штраф: пройти следующий ход без очков.",
-    image: "",
-    audio: ""
-  },
-  {
-    id: crypto.randomUUID(),
-    color: "#64b5f6",
-    title: "Речной квест",
-    description: "Скажите скороговорку без ошибок.",
-    points: 4,
-    penalty: "Штраф: сделайте 5 хлопков над головой.",
-    image: "",
-    audio: ""
-  },
-  {
-    id: crypto.randomUUID(),
-    color: "#f06292",
-    title: "Пещерный квест",
-    description: "Придумайте рифму к слову 'игра'.",
-    points: 5,
-    penalty: "Штраф: назвать 5 стран за 10 секунд.",
-    image: "",
-    audio: ""
-  }
-);
 
 const state = loadState();
 const ui = {
   board: document.getElementById("board"),
+  categoryLegend: document.getElementById("categoryLegend"),
+  fxLayer: document.getElementById("fxLayer"),
   scoreValue: document.getElementById("scoreValue"),
   turnValue: document.getElementById("turnValue"),
   targetScoreValue: document.getElementById("targetScoreValue"),
@@ -70,9 +69,13 @@ const ui = {
   adminPanel: document.getElementById("adminPanel"),
   settingsForm: document.getElementById("settingsForm"),
   targetScoreInput: document.getElementById("targetScoreInput"),
+  pawnForm: document.getElementById("pawnForm"),
+  pawnShapeSelect: document.getElementById("pawnShapeSelect"),
+  pawnImageUpload: document.getElementById("pawnImageUpload"),
   cellForm: document.getElementById("cellForm"),
   cellNameInput: document.getElementById("cellNameInput"),
   cellColorInput: document.getElementById("cellColorInput"),
+  cellCategoryInput: document.getElementById("cellCategoryInput"),
   cellStartInput: document.getElementById("cellStartInput"),
   taskForm: document.getElementById("taskForm"),
   taskColorSelect: document.getElementById("taskColorSelect"),
@@ -90,6 +93,7 @@ const ui = {
 };
 
 let currentTask = null;
+let draggingCellId = null;
 
 renderAll();
 wireEvents();
@@ -101,13 +105,8 @@ function wireEvents() {
 
   ui.adminToggle.addEventListener("click", () => {
     const hidden = ui.adminPanel.hasAttribute("hidden");
-    if (hidden) {
-      ui.adminPanel.removeAttribute("hidden");
-      ui.adminToggle.textContent = "Скрыть админ-панель";
-    } else {
-      ui.adminPanel.setAttribute("hidden", "");
-      ui.adminToggle.textContent = "Показать админ-панель";
-    }
+    ui.adminPanel.toggleAttribute("hidden");
+    ui.adminToggle.textContent = hidden ? "Скрыть админ-панель" : "Показать админ-панель";
   });
 
   ui.settingsForm.addEventListener("submit", (event) => {
@@ -116,23 +115,28 @@ function wireEvents() {
     saveAndRender();
   });
 
+  ui.pawnForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    state.pawn.shape = ui.pawnShapeSelect.value;
+    const file = ui.pawnImageUpload.files?.[0];
+    if (file) state.pawn.image = await toDataUri(file);
+    saveAndRender();
+  });
+
   ui.cellForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    const color = normalizeColor(ui.cellColorInput.value);
-    if (ui.cellStartInput.checked) {
-      state.cells.forEach((cell) => {
-        cell.isStart = false;
-      });
-      state.pawnIndex = state.cells.length;
-    }
+    if (ui.cellStartInput.checked) state.cells.forEach((cell) => (cell.isStart = false));
+
     state.cells.push({
       id: crypto.randomUUID(),
       name: ui.cellNameInput.value.trim(),
-      color,
+      color: normalizeColor(ui.cellColorInput.value),
+      category: Number(ui.cellCategoryInput.value),
       isStart: ui.cellStartInput.checked
     });
+    if (ui.cellStartInput.checked) state.pawnIndex = state.cells.length - 1;
     ui.cellForm.reset();
-    ui.cellColorInput.value = "#5dd39e";
+    ui.cellCategoryInput.value = "1";
     saveAndRender();
   });
 
@@ -163,18 +167,28 @@ function wireEvents() {
   });
 }
 
-function onRollDice() {
+async function onRollDice() {
   if (state.awaitingTaskDecision) return;
   if (state.cells.length < 2) {
     ui.diceResult.textContent = "Добавьте минимум 2 ячейки для игры.";
     return;
   }
+
   const dice = 1 + Math.floor(Math.random() * 6);
   state.turn += 1;
-  state.pawnIndex = (state.pawnIndex + dice) % state.cells.length;
-  ui.diceResult.textContent = `Выпало ${dice}. Вы на ячейке «${state.cells[state.pawnIndex].name}».`;
+  await animateDiceRoll(dice);
 
-  const color = normalizeColor(state.cells[state.pawnIndex].color);
+  const route = [];
+  for (let i = 1; i <= dice; i += 1) {
+    route.push((state.pawnIndex + i) % state.cells.length);
+  }
+  await animatePawnRoute(route);
+  state.pawnIndex = route[route.length - 1];
+
+  const cell = state.cells[state.pawnIndex];
+  ui.diceResult.textContent = `Выпало ${dice}. Вы на ячейке «${cell.name}».`;
+
+  const color = normalizeColor(cell.color);
   const colorTasks = state.tasks.filter((task) => normalizeColor(task.color) === color);
   currentTask = colorTasks[Math.floor(Math.random() * colorTasks.length)] || null;
 
@@ -185,7 +199,7 @@ function onRollDice() {
     ui.taskActions.hidden = true;
     state.awaitingTaskDecision = false;
   } else {
-    ui.taskHint.textContent = "Задание открыто только после попадания на ячейку:";
+    ui.taskHint.textContent = "";
     ui.taskTitle.textContent = currentTask.title;
     ui.taskDescription.textContent = currentTask.description;
     ui.taskActions.hidden = false;
@@ -203,9 +217,13 @@ function completeTask(success) {
 
   if (success) {
     state.score += currentTask.points;
-    ui.taskHint.textContent = `Отлично! Вы получили ${currentTask.points} очк.`;
+    ui.taskHint.textContent = `Отлично! +${currentTask.points} очков.`;
+    showConfetti();
+    playRandomSound(GOOD_SOUNDS);
   } else {
     ui.taskHint.textContent = `Не выполнено. ${currentTask.penalty}`;
+    showPoopFx();
+    playRandomSound(BAD_SOUNDS);
   }
 
   state.awaitingTaskDecision = false;
@@ -224,12 +242,25 @@ function checkWin() {
 
 function renderAll() {
   ensureStartCell();
+  renderColorOptions();
   renderStats();
   renderBoard();
+  renderLegend();
   renderAdminLists();
   renderTaskColorSelect();
   applyMedia(currentTask);
   ui.targetScoreInput.value = state.targetScore;
+  ui.pawnShapeSelect.value = state.pawn?.shape || "circle";
+}
+
+function renderColorOptions() {
+  ui.cellColorInput.innerHTML = "";
+  COLOR_PRESETS.forEach((color) => {
+    const option = document.createElement("option");
+    option.value = color.value;
+    option.textContent = `${color.label} (${color.value})`;
+    ui.cellColorInput.appendChild(option);
+  });
 }
 
 function renderStats() {
@@ -243,22 +274,41 @@ function renderBoard() {
   const points = generateLoopPositions(state.cells.length);
 
   state.cells.forEach((cell, index) => {
-    const node = document.createElement("div");
+    const node = document.createElement("button");
     node.className = "cell";
+    node.type = "button";
+    node.draggable = true;
+    node.dataset.cellId = cell.id;
     node.style.left = `${points[index].x}%`;
     node.style.top = `${points[index].y}%`;
     node.style.background = cell.color;
-    node.title = cell.name;
+    node.title = `${cell.name}: цвет ${cell.color}, категория ${cell.category}`;
+    node.innerHTML = `<span>${cell.name}</span>`;
     if (cell.isStart) node.classList.add("start");
+
+    node.addEventListener("dragstart", () => (draggingCellId = cell.id));
+    node.addEventListener("dragover", (event) => event.preventDefault());
+    node.addEventListener("drop", () => reorderCells(draggingCellId, cell.id));
 
     if (index === state.pawnIndex) {
       const pawn = document.createElement("div");
-      pawn.className = "pawn";
+      pawn.className = `pawn ${state.pawn?.shape || "circle"}`;
+      if (state.pawn?.image) pawn.style.backgroundImage = `url(${state.pawn.image})`;
       pawn.title = "Фишка игрока";
       node.appendChild(pawn);
     }
 
     ui.board.appendChild(node);
+  });
+}
+
+function renderLegend() {
+  ui.categoryLegend.innerHTML = "";
+  state.cells.forEach((cell, index) => {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    item.innerHTML = `<i style="background:${cell.color}"></i>${index + 1}. ${cell.name} — ${cell.color}, категория ${cell.category}`;
+    ui.categoryLegend.appendChild(item);
   });
 }
 
@@ -268,7 +318,8 @@ function renderTaskColorSelect() {
   uniqueColors.forEach((color) => {
     const option = document.createElement("option");
     option.value = color;
-    option.textContent = color;
+    const preset = COLOR_PRESETS.find((entry) => entry.value === color);
+    option.textContent = preset ? `${preset.label} (${color})` : color;
     ui.taskColorSelect.appendChild(option);
   });
 }
@@ -277,7 +328,12 @@ function renderAdminLists() {
   ui.cellsList.innerHTML = "";
   state.cells.forEach((cell) => {
     const li = document.createElement("li");
-    li.textContent = `${cell.name} (${cell.color})${cell.isStart ? " — СТАРТ" : ""}`;
+    li.draggable = true;
+    li.dataset.cellId = cell.id;
+    li.textContent = `${cell.name} (${cell.color}) → категория ${cell.category}${cell.isStart ? " — СТАРТ" : ""}`;
+    li.addEventListener("dragstart", () => (draggingCellId = cell.id));
+    li.addEventListener("dragover", (event) => event.preventDefault());
+    li.addEventListener("drop", () => reorderCells(draggingCellId, cell.id));
     ui.cellsList.appendChild(li);
   });
 
@@ -287,6 +343,81 @@ function renderAdminLists() {
     li.textContent = `[${task.color}] ${task.title} • +${task.points} очков`;
     ui.tasksList.appendChild(li);
   });
+}
+
+async function animateDiceRoll(finalValue) {
+  ui.rollDiceBtn.disabled = true;
+  ui.rollDiceBtn.classList.add("rolling");
+  for (let i = 0; i < 8; i += 1) {
+    const fake = 1 + Math.floor(Math.random() * 6);
+    ui.diceResult.textContent = `Кубик крутится... ${fake}`;
+    await wait(85);
+  }
+  ui.diceResult.textContent = `Кубик остановился: ${finalValue}`;
+  ui.rollDiceBtn.classList.remove("rolling");
+  ui.rollDiceBtn.disabled = false;
+}
+
+async function animatePawnRoute(route) {
+  for (const nextIndex of route) {
+    state.pawnIndex = nextIndex;
+    renderBoard();
+    await wait(240);
+  }
+}
+
+function showConfetti() {
+  burstFx(["🎉", "✨", "🎊", "⭐"]);
+}
+
+function showPoopFx() {
+  burstFx(["💩", "🤢", "☠️"]);
+}
+
+function burstFx(symbols) {
+  for (let i = 0; i < 24; i += 1) {
+    const particle = document.createElement("span");
+    particle.className = "fx-particle";
+    particle.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+    particle.style.left = `${Math.random() * 100}%`;
+    particle.style.animationDelay = `${Math.random() * 0.3}s`;
+    particle.style.setProperty("--drift", `${-30 + Math.random() * 60}px`);
+    ui.fxLayer.appendChild(particle);
+    setTimeout(() => particle.remove(), 1800);
+  }
+}
+
+function playRandomSound(list) {
+  const src = list[Math.floor(Math.random() * list.length)];
+  const audio = new Audio(src);
+  audio.volume = 0.45;
+  audio.play().catch(() => toneFallback(list === GOOD_SOUNDS));
+}
+
+function toneFallback(isGood) {
+  const context = new AudioContext();
+  const osc = context.createOscillator();
+  const gain = context.createGain();
+  osc.type = isGood ? "triangle" : "sawtooth";
+  osc.frequency.value = isGood ? 660 : 180;
+  osc.connect(gain);
+  gain.connect(context.destination);
+  gain.gain.value = 0.02;
+  osc.start();
+  osc.stop(context.currentTime + 0.25);
+}
+
+function reorderCells(fromId, toId) {
+  if (!fromId || !toId || fromId === toId) return;
+  const fromIndex = state.cells.findIndex((cell) => cell.id === fromId);
+  const toIndex = state.cells.findIndex((cell) => cell.id === toId);
+  if (fromIndex < 0 || toIndex < 0) return;
+
+  const pawnCellId = state.cells[state.pawnIndex]?.id;
+  const [moved] = state.cells.splice(fromIndex, 1);
+  state.cells.splice(toIndex, 0, moved);
+  state.pawnIndex = Math.max(0, state.cells.findIndex((cell) => cell.id === pawnCellId));
+  saveAndRender();
 }
 
 function generateLoopPositions(count) {
@@ -320,9 +451,7 @@ function saveAndRender() {
 }
 
 function ensureStartCell() {
-  if (!state.cells.some((cell) => cell.isStart) && state.cells[0]) {
-    state.cells[0].isStart = true;
-  }
+  if (!state.cells.some((cell) => cell.isStart) && state.cells[0]) state.cells[0].isStart = true;
   state.pawnIndex = clamp(state.pawnIndex, 0, Math.max(0, state.cells.length - 1));
 }
 
@@ -339,6 +468,19 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function toDataUri(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -347,6 +489,7 @@ function loadState() {
     return {
       ...structuredClone(defaults),
       ...parsed,
+      pawn: { ...structuredClone(defaults.pawn), ...parsed.pawn },
       cells: parsed.cells?.length ? parsed.cells : structuredClone(defaults.cells),
       tasks: Array.isArray(parsed.tasks) ? parsed.tasks : structuredClone(defaults.tasks)
     };

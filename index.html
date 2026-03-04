@@ -20,6 +20,7 @@
   <main class="layout">
     <section class="board-panel">
       <div id="board" class="board" aria-label="Игровое поле"></div>
+      <div id="categoryLegend" class="category-legend"></div>
 
       <div class="controls">
         <button id="rollDiceBtn" class="button">Бросить кубик</button>
@@ -27,7 +28,6 @@
       </div>
 
       <section class="task-card" id="taskCard">
-        <h2>Задание</h2>
         <p id="taskHint">Попадите на ячейку, чтобы получить задание.</p>
         <h3 id="taskTitle"></h3>
         <p id="taskDescription"></p>
@@ -39,6 +39,7 @@
           <button id="failBtn" class="button danger">Не выполнено (штраф)</button>
         </div>
       </section>
+      <div id="fxLayer" class="fx-layer" aria-hidden="true"></div>
     </section>
 
     <aside id="adminPanel" class="admin-panel" hidden>
@@ -53,13 +54,32 @@
         <button class="button secondary" type="submit">Сохранить цель</button>
       </form>
 
+      <form id="pawnForm" class="admin-block">
+        <h3>Фишка игрока</h3>
+        <label>Встроенная форма
+          <select id="pawnShapeSelect">
+            <option value="circle">Круг</option>
+            <option value="diamond">Ромб</option>
+            <option value="star">Звезда</option>
+            <option value="hex">Шестиугольник</option>
+          </select>
+        </label>
+        <label>Или загрузите своё изображение
+          <input type="file" id="pawnImageUpload" accept="image/*" />
+        </label>
+        <button class="button secondary" type="submit">Сохранить фишку</button>
+      </form>
+
       <form id="cellForm" class="admin-block">
         <h3>Добавить ячейку</h3>
         <label>Название
           <input type="text" id="cellNameInput" required placeholder="Например: Лесная поляна" />
         </label>
         <label>Цвет
-          <input type="color" id="cellColorInput" value="#5dd39e" />
+          <select id="cellColorInput" required></select>
+        </label>
+        <label>Категория №
+          <input type="number" id="cellCategoryInput" min="1" value="1" required />
         </label>
         <label>Стартовая ячейка
           <input type="checkbox" id="cellStartInput" />
@@ -94,7 +114,7 @@
       </form>
 
       <div class="admin-block">
-        <h3>Существующие ячейки</h3>
+        <h3>Существующие ячейки (перетаскивайте для смены порядка)</h3>
         <ul id="cellsList" class="items"></ul>
       </div>
 
