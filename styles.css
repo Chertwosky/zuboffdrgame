@@ -1,0 +1,175 @@
+:root {
+  --bg: #0f1320;
+  --panel: #1b2138;
+  --panel-soft: #252d4b;
+  --text: #f2f5ff;
+  --muted: #9eabd1;
+  --accent: #7ad8ff;
+  --danger: #ff6a87;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI", Roboto, sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at 20% 10%, #25315d 0%, var(--bg) 48%);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  background: rgba(10, 14, 26, 0.7);
+  border-bottom: 1px solid #2d3760;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.game-stats {
+  display: flex;
+  gap: 1rem;
+  color: var(--muted);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(280px, 380px);
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.board-panel,
+.admin-panel {
+  background: rgba(21, 28, 50, 0.9);
+  border: 1px solid #2f3a64;
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.board {
+  position: relative;
+  width: min(92vw, 760px);
+  aspect-ratio: 1.4 / 1;
+  margin: 0 auto;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(122, 216, 255, 0.18), transparent 50%),
+    radial-gradient(circle at 70% 70%, rgba(255, 120, 180, 0.12), transparent 45%),
+    #111a33;
+  border: 1px solid #314072;
+}
+
+.cell {
+  position: absolute;
+  width: 68px;
+  height: 68px;
+  border-radius: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: #fff;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+}
+
+.cell.start {
+  outline: 4px solid #fff7a6;
+}
+
+.pawn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #222;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.button {
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-weight: 700;
+  background: linear-gradient(180deg, #4ca7ff, #2879eb);
+  color: #fff;
+  cursor: pointer;
+}
+
+.button.secondary { background: #364474; }
+.button.danger { background: #a72f54; }
+
+.dice-result { color: var(--muted); margin: 0; }
+
+.task-card {
+  margin-top: 1rem;
+  background: var(--panel-soft);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.task-card img {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-top: 0.5rem;
+}
+
+.task-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+
+.admin-panel { max-height: calc(100vh - 115px); overflow-y: auto; }
+
+.admin-block {
+  background: #1f2742;
+  padding: 0.75rem;
+  border-radius: 10px;
+  margin-bottom: 0.8rem;
+}
+
+label { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.6rem; }
+input, textarea, select {
+  border: 1px solid #415083;
+  border-radius: 8px;
+  padding: 0.5rem;
+  background: #13192d;
+  color: var(--text);
+}
+
+.items { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.45rem; }
+.items li {
+  font-size: 0.86rem;
+  padding: 0.45rem;
+  border-radius: 8px;
+  background: #151b30;
+  border: 1px solid #2f3a64;
+}
+
+.subtle { color: var(--muted); margin-top: -0.2rem; }
+
+dialog {
+  border: 1px solid #314072;
+  border-radius: 12px;
+  background: #19213b;
+  color: var(--text);
+  padding: 1rem 1.2rem;
+}
+
+@media (max-width: 1024px) {
+  .layout { grid-template-columns: 1fr; }
+  .board { width: 100%; }
+}
