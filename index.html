@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Цикличная игра с заданиями</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Фишечный поход</h1>
+    <div class="game-stats">
+      <span>Очки: <strong id="scoreValue">0</strong></span>
+      <span>Цель: <strong id="targetScoreValue">20</strong></span>
+      <span>Ходы: <strong id="turnValue">0</strong></span>
+    </div>
+    <button id="adminToggle" class="button secondary">Показать админ-панель</button>
+  </header>
+
+  <main class="layout">
+    <section class="board-panel">
+      <div id="board" class="board" aria-label="Игровое поле"></div>
+
+      <div class="controls">
+        <button id="rollDiceBtn" class="button">Бросить кубик</button>
+        <p id="diceResult" class="dice-result">Сделайте первый бросок.</p>
+      </div>
+
+      <section class="task-card" id="taskCard">
+        <h2>Задание</h2>
+        <p id="taskHint">Попадите на ячейку, чтобы получить задание.</p>
+        <h3 id="taskTitle"></h3>
+        <p id="taskDescription"></p>
+        <img id="taskImage" alt="Изображение задания" hidden />
+        <audio id="taskAudio" controls hidden></audio>
+
+        <div class="task-actions" id="taskActions" hidden>
+          <button id="successBtn" class="button">Выполнено (+очки)</button>
+          <button id="failBtn" class="button danger">Не выполнено (штраф)</button>
+        </div>
+      </section>
+    </section>
+
+    <aside id="adminPanel" class="admin-panel" hidden>
+      <h2>Админ-панель</h2>
+      <p class="subtle">Управляйте ячейками и заданиями. Все изменения сохраняются в браузере.</p>
+
+      <form id="settingsForm" class="admin-block">
+        <h3>Параметры игры</h3>
+        <label>Цель по очкам
+          <input type="number" id="targetScoreInput" min="1" value="20" required />
+        </label>
+        <button class="button secondary" type="submit">Сохранить цель</button>
+      </form>
+
+      <form id="cellForm" class="admin-block">
+        <h3>Добавить ячейку</h3>
+        <label>Название
+          <input type="text" id="cellNameInput" required placeholder="Например: Лесная поляна" />
+        </label>
+        <label>Цвет
+          <input type="color" id="cellColorInput" value="#5dd39e" />
+        </label>
+        <label>Стартовая ячейка
+          <input type="checkbox" id="cellStartInput" />
+        </label>
+        <button class="button secondary" type="submit">Добавить ячейку</button>
+      </form>
+
+      <form id="taskForm" class="admin-block">
+        <h3>Добавить задание к цвету</h3>
+        <label>Цвет ячейки
+          <select id="taskColorSelect" required></select>
+        </label>
+        <label>Название задания
+          <input type="text" id="taskTitleInput" required />
+        </label>
+        <label>Описание задания
+          <textarea id="taskDescriptionInput" rows="3" required></textarea>
+        </label>
+        <label>Очки за выполнение
+          <input type="number" id="taskPointsInput" min="1" value="3" required />
+        </label>
+        <label>Штрафное задание (текст)
+          <textarea id="taskPenaltyInput" rows="2" required placeholder="Например: Сделайте 10 приседаний."></textarea>
+        </label>
+        <label>Картинка (URL или data URI)
+          <input type="url" id="taskImageInput" placeholder="https://..." />
+        </label>
+        <label>Звук (URL или data URI)
+          <input type="url" id="taskAudioInput" placeholder="https://..." />
+        </label>
+        <button class="button secondary" type="submit">Добавить задание</button>
+      </form>
+
+      <div class="admin-block">
+        <h3>Существующие ячейки</h3>
+        <ul id="cellsList" class="items"></ul>
+      </div>
+
+      <div class="admin-block">
+        <h3>Существующие задания</h3>
+        <ul id="tasksList" class="items"></ul>
+      </div>
+    </aside>
+  </main>
+
+  <dialog id="gameWinDialog">
+    <h2>Победа!</h2>
+    <p id="winText"></p>
+    <button id="newGameBtn" class="button">Начать заново</button>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
