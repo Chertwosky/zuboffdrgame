@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Фишечный поход</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Фишечный поход</h1>
+      <p>Наберите целевое количество очков и финишируйте на клетке старта.</p>
+    </header>
+
+    <main>
+      <section class="panel game-panel">
+        <h2>Игра</h2>
+        <div class="stats">
+          <div><strong>Позиция:</strong> <span id="position">0</span></div>
+          <div><strong>Очки:</strong> <span id="score">0</span></div>
+          <div><strong>Цель:</strong> <span id="targetScore">20</span></div>
+        </div>
+
+        <div class="controls">
+          <button id="rollDiceBtn">Бросить кубик</button>
+          <button id="resetGameBtn" class="secondary">Сброс игры</button>
+        </div>
+
+        <p id="diceResult" class="message">Нажмите «Бросить кубик», чтобы начать.</p>
+        <div id="board" class="board"></div>
+
+        <article id="taskCard" class="task-card hidden">
+          <h3 id="taskTitle"></h3>
+          <p id="taskText"></p>
+          <img id="taskImage" alt="Изображение задания" class="hidden" />
+          <audio id="taskAudio" controls class="hidden"></audio>
+          <div class="task-actions">
+            <button id="completeTaskBtn">Выполнено</button>
+            <button id="failTaskBtn" class="danger">Не выполнено</button>
+          </div>
+          <p id="penaltyInfo" class="penalty"></p>
+        </article>
+
+        <p id="gameStatus" class="message"></p>
+      </section>
+
+      <section class="panel admin-panel">
+        <h2>Админ-панель</h2>
+
+        <div class="admin-block">
+          <h3>Параметры игры</h3>
+          <label>
+            Целевые очки:
+            <input id="targetScoreInput" type="number" min="1" value="20" />
+          </label>
+          <button id="saveSettingsBtn" class="secondary">Сохранить параметры</button>
+        </div>
+
+        <div class="admin-block">
+          <h3>Клетки и задания</h3>
+          <label>Название клетки <input id="cellNameInput" type="text" /></label>
+          <label>Текст задания <textarea id="taskInput" rows="3"></textarea></label>
+          <label>Очки за выполнение <input id="pointsInput" type="number" value="3" /></label>
+          <label>Штраф за невыполнение <input id="penaltyInput" type="number" value="1" min="0" /></label>
+          <label>
+            Картинка задания
+            <input id="imageInput" type="file" accept="image/*" />
+          </label>
+          <label>
+            Звук задания
+            <input id="audioInput" type="file" accept="audio/*" />
+          </label>
+
+          <div class="inline-buttons">
+            <button id="addCellBtn">Добавить клетку</button>
+            <button id="updateCellBtn" class="secondary">Изменить выбранную</button>
+            <button id="deleteCellBtn" class="danger">Удалить выбранную</button>
+          </div>
+
+          <label>
+            Выберите клетку для редактирования
+            <select id="cellSelect"></select>
+          </label>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
