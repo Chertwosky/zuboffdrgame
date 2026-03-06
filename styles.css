@@ -189,9 +189,36 @@ h1 { margin: .15rem 0 0; font-size: clamp(1.45rem, 2.5vw, 2rem); }
 .task-card img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 10px; margin-top: .45rem; }
 .task-actions { margin-top: .9rem; display: flex; gap: .5rem; }
 
-.fx-layer { pointer-events: none; position: fixed; inset: 0; overflow: hidden; }
-.fx-particle { position: absolute; top: -8%; font-size: 1.6rem; animation: fall 1.8s ease-in forwards; }
-@keyframes fall { from { transform: translateX(0) translateY(0); opacity: 1; } to { transform: translateX(var(--drift)) translateY(115vh); opacity: 0; } }
+.fx-layer {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: 120;
+}
+.fx-particle {
+  position: fixed;
+  top: -12vh;
+  left: 0;
+  opacity: var(--opacity, 1);
+  font-size: clamp(1.35rem, 2.3vw, 2.2rem);
+  text-shadow: 0 8px 20px rgba(0, 0, 0, .4);
+  will-change: transform, opacity;
+  animation: fall var(--duration, 2.3s) cubic-bezier(.19,.7,.24,1) forwards;
+}
+.fx-particle.storm {
+  filter: grayscale(.2) contrast(1.15) blur(var(--blur, 0));
+}
+@keyframes fall {
+  from {
+    transform: translate3d(0, -8vh, 0) rotate(0deg) scale(var(--scale-start, 1));
+    opacity: var(--opacity, 1);
+  }
+  to {
+    transform: translate3d(var(--drift, 0px), 118vh, 0) rotate(var(--spin, 90deg)) scale(var(--scale-end, .5));
+    opacity: 0;
+  }
+}
 
 .feedback-overlay {
   position: fixed;
@@ -234,6 +261,25 @@ input, textarea, select {
 .subtle { color: var(--muted); margin-top: -.2rem; }
 
 dialog { border: 1px solid #314072; border-radius: 12px; background: #19213b; color: var(--text); padding: 1rem 1.2rem; }
+
+.button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(.35) brightness(.78);
+}
+
+.task-card:has(.task-actions:not([hidden])) {
+  border-color: #4f72da;
+  box-shadow: 0 0 0 1px rgba(79, 114, 218, .35), 0 10px 30px rgba(27, 42, 91, .35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button.rolling,
+  .pawn,
+  .fx-particle {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
 
 @media (max-width: 1100px) {
   .topbar { grid-template-columns: 1fr; }
