@@ -116,6 +116,7 @@ const ui = {
 let currentTask = null;
 let draggingCellId = null;
 let feedbackSound = null;
+let feedbackCloseTimer = null;
 
 renderAll();
 wireEvents();
@@ -126,6 +127,7 @@ function wireEvents() {
   ui.failBtn.addEventListener("click", () => completeTask(false));
 
   ui.feedbackClose.addEventListener("click", closeFeedbackOverlay);
+  ui.feedbackClose.addEventListener("pointerup", closeFeedbackOverlay);
   ui.feedbackOverlay.addEventListener("click", (event) => {
     if (event.target === ui.feedbackOverlay) closeFeedbackOverlay();
   });
@@ -269,6 +271,7 @@ function showFeedbackOverlay(success) {
     : `Не страшно. Следующее задание точно получится. ${currentTask?.penalty || ""}`;
 
   ui.feedbackOverlay.hidden = false;
+  ui.feedbackClose.onclick = closeFeedbackOverlay;
   ui.feedbackOverlay.classList.toggle("success", success);
   ui.feedbackOverlay.classList.toggle("fail", !success);
   ui.feedbackTitle.textContent = success ? "Успех!" : "Промах";
@@ -276,6 +279,9 @@ function showFeedbackOverlay(success) {
 
   presentFeedbackVisual(mediaSet);
   playFeedbackSound(mediaSet.sounds, success);
+
+  if (feedbackCloseTimer) clearTimeout(feedbackCloseTimer);
+  feedbackCloseTimer = setTimeout(closeFeedbackOverlay, 12000);
 }
 
 function presentFeedbackVisual(mediaSet) {
@@ -329,6 +335,11 @@ function playFeedbackSound(soundList, isGood) {
 }
 
 function closeFeedbackOverlay() {
+  if (feedbackCloseTimer) {
+    clearTimeout(feedbackCloseTimer);
+    feedbackCloseTimer = null;
+  }
+
   ui.feedbackOverlay.hidden = true;
   ui.feedbackVideo.pause();
   ui.feedbackVideo.hidden = true;

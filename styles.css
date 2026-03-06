@@ -10,6 +10,11 @@
 }
 
 * { box-sizing: border-box; }
+
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
