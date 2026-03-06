@@ -9,6 +9,23 @@ const COLOR_PRESETS = [
 
 const GOOD_SOUNDS = ["music/success1.mp3", "music/success2.mp3", "music/success3.mp3"];
 const BAD_SOUNDS = ["musicbad/fail1.mp3", "musicbad/fail2.mp3", "musicbad/fail3.mp3"];
+const SUCCESS_EMOJI_BURST = [
+  "🎉",
+  "🎊",
+  "✨",
+  "🥳",
+  "🎇",
+  "🎆",
+  "🌟",
+  "💫",
+  "🪩",
+  "🎈",
+  "💖",
+  "🍾",
+  "🙌",
+  "💐"
+];
+const FAIL_EMOJI_BURST = ["💩", "☠️", "💀", "🤢", "👎", "😵", "🫠", "😬", "🪦"];
 
 const defaults = {
   targetScore: 20,
@@ -217,11 +234,11 @@ function completeTask(success) {
 
   if (success) {
     state.score += currentTask.points;
-    ui.taskHint.textContent = `Отлично! +${currentTask.points} очков.`;
+    ui.taskHint.textContent = `Отлично! +${currentTask.points} очков! 🎉🎊✨🥳🎆🎇🌟💫🪩🎈🍾💖🙌💐✨🎉🎊`;
     showConfetti();
     playRandomSound(GOOD_SOUNDS);
   } else {
-    ui.taskHint.textContent = `Не выполнено. ${currentTask.penalty}`;
+    ui.taskHint.textContent = `Не выполнено... 💩☠️💀🤢😵‍💫👎 ${currentTask.penalty}`;
     showPoopFx();
     playRandomSound(BAD_SOUNDS);
   }
@@ -367,15 +384,15 @@ async function animatePawnRoute(route) {
 }
 
 function showConfetti() {
-  burstFx(["🎉", "✨", "🎊", "⭐"]);
+  burstFx(SUCCESS_EMOJI_BURST, 90);
 }
 
 function showPoopFx() {
-  burstFx(["💩", "🤢", "☠️"]);
+  burstFx(FAIL_EMOJI_BURST, 42);
 }
 
-function burstFx(symbols) {
-  for (let i = 0; i < 24; i += 1) {
+function burstFx(symbols, count = 24) {
+  for (let i = 0; i < count; i += 1) {
     const particle = document.createElement("span");
     particle.className = "fx-particle";
     particle.textContent = symbols[Math.floor(Math.random() * symbols.length)];
