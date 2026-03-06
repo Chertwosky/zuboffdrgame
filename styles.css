@@ -185,6 +185,37 @@ kbd {
 .pawn.hex { clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0% 50%); }
 @keyframes pawnPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,.5); } 50% { box-shadow: 0 0 0 8px rgba(255,255,255,0); } }
 
+
+.players-panel {
+  margin-bottom: .9rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: .55rem;
+}
+
+.player-card {
+  border: 1px solid #324272;
+  border-radius: 10px;
+  padding: .55rem .65rem;
+  background: #182241;
+}
+
+.player-card.active {
+  border-color: #73e3a8;
+  box-shadow: 0 0 0 1px #73e3a8 inset;
+}
+
+.player-card h3 {
+  margin: 0 0 .25rem;
+  font-size: .92rem;
+}
+
+.player-card p {
+  margin: 0;
+  font-size: .82rem;
+  color: #d4e0ff;
+}
+
 .category-legend {
   margin-top: .8rem;
   display: grid;

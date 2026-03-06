@@ -14,8 +14,8 @@
         <h1>Фишечный поход</h1>
       </div>
       <div class="game-stats" aria-live="polite">
-        <span>Очки <strong id="scoreValue">0</strong></span>
-        <span>Цель <strong id="targetScoreValue">20</strong></span>
+        <span>Карточки <strong id="scoreValue">0</strong></span>
+        <span>Игрок <strong id="currentPlayerValue">—</strong></span>
         <span>Ходы <strong id="turnValue">0</strong></span>
       </div>
       <button id="adminToggle" class="button secondary">Показать админ-панель</button>
@@ -31,8 +31,10 @@
       <section class="board-panel">
         <div class="progress-wrap" aria-hidden="true">
           <div class="progress-track"><div id="goalProgress" class="progress-fill"></div></div>
-          <span id="goalProgressLabel" class="progress-label">0% до цели</span>
+          <span id="goalProgressLabel" class="progress-label">0% прогресса</span>
         </div>
+
+        <section id="playersPanel" class="players-panel" aria-label="Игроки"></section>
 
         <div id="board" class="board" aria-label="Игровое поле"></div>
         <div id="categoryLegend" class="category-legend"></div>
@@ -73,7 +75,7 @@
           <audio id="taskAudio" controls hidden></audio>
 
           <div class="task-actions" id="taskActions" hidden>
-            <button id="successBtn" class="button">Выполнено (+очки)</button>
+            <button id="successBtn" class="button">Выполнено (+карточка)</button>
             <button id="failBtn" class="button danger">Не выполнено (штраф)</button>
           </div>
         </section>
@@ -86,11 +88,32 @@
         <p class="subtle">Конструктор игры. Все изменения сохраняются в браузере.</p>
 
         <form id="settingsForm" class="admin-block">
-          <h3>Параметры игры</h3>
-          <label>Цель по очкам
-            <input type="number" id="targetScoreInput" min="1" value="20" required />
+          <h3>Условия победы</h3>
+          <p class="subtle">Для победы нужно собрать: 1 сиреневую, 2 красные, 3 синие и 4 зелёные карточки.</p>
+        </form>
+
+        <form id="playerForm" class="admin-block">
+          <h3>Игроки</h3>
+          <label>Имя нового игрока
+            <input type="text" id="playerNameInput" required placeholder="Например: Маша" />
           </label>
-          <button class="button secondary" type="submit">Сохранить цель</button>
+          <button class="button secondary" type="submit">Добавить игрока</button>
+          <ul id="playersAdminList" class="items"></ul>
+        </form>
+
+        <form id="exchangeForm" class="admin-block">
+          <h3>Обмен карточек</h3>
+          <label>Игрок
+            <select id="exchangePlayerSelect" required></select>
+          </label>
+          <label>Обмен
+            <select id="exchangeRuleSelect" required>
+              <option value="purpleToRed">1 сиреневая → 2 красные</option>
+              <option value="redToBlue">1 красная → 2 синие</option>
+              <option value="blueToGreen">1 синяя → 2 зелёные</option>
+            </select>
+          </label>
+          <button class="button secondary" type="submit">Выполнить обмен</button>
         </form>
 
         <form id="pawnForm" class="admin-block">
@@ -137,9 +160,7 @@
           <label>Описание задания
             <textarea id="taskDescriptionInput" rows="3" required></textarea>
           </label>
-          <label>Очки за выполнение
-            <input type="number" id="taskPointsInput" min="1" value="3" required />
-          </label>
+          <p class="subtle">За выполненное задание начисляется 1 карточка цвета ячейки.</p>
           <label>Штрафное задание (текст)
             <textarea id="taskPenaltyInput" rows="2" required placeholder="Например: Сделайте 10 приседаний."></textarea>
           </label>
