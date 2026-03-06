@@ -117,6 +117,7 @@ let currentTask = null;
 let draggingCellId = null;
 let feedbackSound = null;
 let feedbackCloseTimer = null;
+let fxBurstId = 0;
 
 renderAll();
 wireEvents();
@@ -194,6 +195,7 @@ function wireEvents() {
     currentTask = null;
     state.pawnIndex = getStartIndex();
     ui.gameWinDialog.close();
+    ui.diceResult.textContent = "Новая игра началась. Бросайте кубик!";
     saveAndRender();
   });
 }
@@ -228,12 +230,16 @@ async function onRollDice() {
     ui.taskTitle.textContent = "";
     ui.taskDescription.textContent = "";
     ui.taskActions.hidden = true;
+    ui.successBtn.disabled = false;
+    ui.failBtn.disabled = false;
     state.awaitingTaskDecision = false;
   } else {
     ui.taskHint.textContent = "Оцените результат выполнения задания:";
     ui.taskTitle.textContent = currentTask.title;
     ui.taskDescription.textContent = currentTask.description;
     ui.taskActions.hidden = false;
+    ui.successBtn.disabled = false;
+    ui.failBtn.disabled = false;
     state.awaitingTaskDecision = true;
   }
 
@@ -246,14 +252,17 @@ async function onRollDice() {
 function completeTask(success) {
   if (!currentTask || !state.awaitingTaskDecision) return;
 
+  ui.successBtn.disabled = true;
+  ui.failBtn.disabled = true;
+
   if (success) {
     state.score += currentTask.points;
     ui.taskHint.textContent = `Отлично! +${currentTask.points} очков.`;
-    showConfetti();
   } else {
     ui.taskHint.textContent = `Не выполнено. Штраф: ${currentTask.penalty}`;
-    showPoopFx();
   }
+
+  showTaskResultFx(success);
 
   state.awaitingTaskDecision = false;
   ui.taskActions.hidden = true;
@@ -488,24 +497,37 @@ async function animatePawnRoute(route) {
   }
 }
 
-function showConfetti() {
-  burstFx(SUCCESS_EMOJI_BURST, 90);
+function showTaskResultFx(success) {
+  const symbols = success ? SUCCESS_EMOJI_BURST : FAIL_EMOJI_BURST;
+  const count = success ? 110 : 58;
+  burstFx(symbols, count, success ? "rainbow" : "storm");
 }
 
-function showPoopFx() {
-  burstFx(FAIL_EMOJI_BURST, 42);
-}
+function burstFx(symbols, count = 24, mode = "rainbow") {
+  fxBurstId += 1;
+  const currentBurstId = fxBurstId;
 
-function burstFx(symbols, count = 24) {
   for (let i = 0; i < count; i += 1) {
     const particle = document.createElement("span");
     particle.className = "fx-particle";
+    particle.dataset.burst = String(currentBurstId);
     particle.textContent = symbols[Math.floor(Math.random() * symbols.length)];
-    particle.style.left = `${Math.random() * 100}%`;
-    particle.style.animationDelay = `${Math.random() * 0.3}s`;
-    particle.style.setProperty("--drift", `${-30 + Math.random() * 60}px`);
+    particle.style.left = `${Math.random() * 100}vw`;
+    particle.style.animationDelay = `${Math.random() * 0.55}s`;
+    particle.style.setProperty("--drift", `${-120 + Math.random() * 240}px`);
+    particle.style.setProperty("--spin", `${-180 + Math.random() * 360}deg`);
+    particle.style.setProperty("--scale-start", `${0.65 + Math.random() * 0.85}`);
+    particle.style.setProperty("--scale-end", `${0.35 + Math.random() * 0.4}`);
+    particle.style.setProperty("--duration", `${1.65 + Math.random() * 1.45}s`);
+    particle.style.setProperty("--opacity", mode === "rainbow" ? "1" : "0.92");
+
+    if (mode === "storm") {
+      particle.classList.add("storm");
+      particle.style.setProperty("--blur", `${Math.random() > 0.7 ? 0.35 : 0}px`);
+    }
+
     ui.fxLayer.appendChild(particle);
-    setTimeout(() => particle.remove(), 1800);
+    setTimeout(() => particle.remove(), 3200);
   }
 }
 
