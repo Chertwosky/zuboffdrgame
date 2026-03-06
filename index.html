@@ -21,6 +21,12 @@
       <button id="adminToggle" class="button secondary">Показать админ-панель</button>
     </header>
 
+    <section class="smart-bar" aria-label="Быстрые настройки">
+      <button id="themeToggleBtn" class="button ghost" type="button">🌓 Тема</button>
+      <button id="soundToggleBtn" class="button ghost" type="button">🔊 Звук включён</button>
+      <p class="shortcut-hint">Горячие клавиши: <kbd>Space</kbd> — бросок, <kbd>S</kbd> — успех, <kbd>F</kbd> — провал</p>
+    </section>
+
     <main class="layout">
       <section class="board-panel">
         <div class="progress-wrap" aria-hidden="true">
@@ -35,6 +41,29 @@
           <button id="rollDiceBtn" class="button">🎲 Бросить кубик</button>
           <p id="diceResult" class="dice-result">Сделайте первый бросок.</p>
         </div>
+
+        <section class="dashboard" aria-label="Игровая аналитика">
+          <article class="metric-card">
+            <p>Выполнено заданий</p>
+            <strong id="completedTasksValue">0</strong>
+          </article>
+          <article class="metric-card">
+            <p>Успешность</p>
+            <strong id="successRateValue">0%</strong>
+          </article>
+          <article class="metric-card">
+            <p>Серия успехов</p>
+            <strong id="streakValue">0</strong>
+          </article>
+        </section>
+
+        <section class="history-panel" aria-live="polite">
+          <div class="history-head">
+            <h3>Лента событий</h3>
+            <button id="clearHistoryBtn" class="button ghost" type="button">Очистить</button>
+          </div>
+          <ul id="historyList" class="history-list"></ul>
+        </section>
 
         <section class="task-card" id="taskCard" aria-live="polite">
           <p id="taskHint" class="task-hint">Попадите на ячейку, чтобы получить задание.</p>
@@ -131,6 +160,17 @@
         <div class="admin-block">
           <h3>Существующие задания</h3>
           <ul id="tasksList" class="items"></ul>
+        </div>
+
+        <div class="admin-block">
+          <h3>Резервная копия</h3>
+          <div class="admin-actions-inline">
+            <button id="exportStateBtn" class="button secondary" type="button">Экспорт JSON</button>
+            <label class="file-inline">Импорт JSON
+              <input id="importStateInput" type="file" accept="application/json" />
+            </label>
+          </div>
+          <button id="resetStateBtn" class="button danger" type="button">Сбросить всё</button>
         </div>
       </aside>
     </main>
