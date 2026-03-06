@@ -1,4 +1,4 @@
-const STORAGE_KEY = "chip-game-state-v3";
+const STORAGE_KEY = "chip-game-state-v4";
 
 const COLOR_PRESETS = [
   { value: "#c792ea", label: "Сиреневый" },
@@ -29,6 +29,10 @@ const defaults = {
   turn: 0,
   pawnIndex: 0,
   awaitingTaskDecision: false,
+  soundEnabled: true,
+  theme: "dark",
+  stats: { completed: 0, success: 0, fail: 0, streak: 0, bestStreak: 0 },
+  history: [],
   pawn: { shape: "circle", image: "" },
   cells: [
     { id: crypto.randomUUID(), name: "Старт", color: "#c792ea", category: 1, isStart: true },
@@ -70,6 +74,11 @@ const ui = {
   targetScoreValue: document.getElementById("targetScoreValue"),
   goalProgress: document.getElementById("goalProgress"),
   goalProgressLabel: document.getElementById("goalProgressLabel"),
+  completedTasksValue: document.getElementById("completedTasksValue"),
+  successRateValue: document.getElementById("successRateValue"),
+  streakValue: document.getElementById("streakValue"),
+  historyList: document.getElementById("historyList"),
+  clearHistoryBtn: document.getElementById("clearHistoryBtn"),
   diceResult: document.getElementById("diceResult"),
   rollDiceBtn: document.getElementById("rollDiceBtn"),
   taskHint: document.getElementById("taskHint"),
@@ -81,6 +90,8 @@ const ui = {
   successBtn: document.getElementById("successBtn"),
   failBtn: document.getElementById("failBtn"),
   adminToggle: document.getElementById("adminToggle"),
+  themeToggleBtn: document.getElementById("themeToggleBtn"),
+  soundToggleBtn: document.getElementById("soundToggleBtn"),
   adminPanel: document.getElementById("adminPanel"),
   settingsForm: document.getElementById("settingsForm"),
   targetScoreInput: document.getElementById("targetScoreInput"),
@@ -100,6 +111,9 @@ const ui = {
   taskPenaltyInput: document.getElementById("taskPenaltyInput"),
   taskImageInput: document.getElementById("taskImageInput"),
   taskAudioInput: document.getElementById("taskAudioInput"),
+  exportStateBtn: document.getElementById("exportStateBtn"),
+  importStateInput: document.getElementById("importStateInput"),
+  resetStateBtn: document.getElementById("resetStateBtn"),
   cellsList: document.getElementById("cellsList"),
   tasksList: document.getElementById("tasksList"),
   feedbackOverlay: document.getElementById("feedbackOverlay"),
@@ -125,6 +139,14 @@ function wireEvents() {
   ui.rollDiceBtn.addEventListener("click", onRollDice);
   ui.successBtn.addEventListener("click", () => completeTask(true));
   ui.failBtn.addEventListener("click", () => completeTask(false));
+  ui.themeToggleBtn.addEventListener("click", toggleTheme);
+  ui.soundToggleBtn.addEventListener("click", toggleSound);
+  ui.clearHistoryBtn.addEventListener("click", () => {
+    state.history = [];
+    saveAndRender();
+  });
+
+  document.addEventListener("keydown", onHotkeys);
 
   ui.feedbackClose.addEventListener("click", closeFeedbackOverlay);
   ui.feedbackClose.addEventListener("pointerup", closeFeedbackOverlay);
@@ -190,10 +212,23 @@ function wireEvents() {
   ui.newGameBtn.addEventListener("click", () => {
     state.score = 0;
     state.turn = 0;
+    state.stats = structuredClone(defaults.stats);
+    state.history = [];
     state.awaitingTaskDecision = false;
     currentTask = null;
     state.pawnIndex = getStartIndex();
     ui.gameWinDialog.close();
+    saveAndRender();
+  });
+
+  ui.exportStateBtn.addEventListener("click", exportState);
+  ui.importStateInput.addEventListener("change", importStateFile);
+  ui.resetStateBtn.addEventListener("click", () => {
+    const shouldReset = window.confirm("Сбросить игру и конструктор до стандартных значений?");
+    if (!shouldReset) return;
+    Object.assign(state, structuredClone(defaults));
+    state.pawnIndex = getStartIndex();
+    currentTask = null;
     saveAndRender();
   });
 }
@@ -219,6 +254,7 @@ async function onRollDice() {
 
   const cell = state.cells[state.pawnIndex];
   ui.diceResult.textContent = `Выпало ${dice}. Вы на ячейке «${cell.name}».`;
+  pushHistory(`🎲 Ход ${state.turn}: выпало ${dice}, переход на «${cell.name}».`);
 
   const colorTasks = state.tasks.filter((task) => normalizeColor(task.color) === normalizeColor(cell.color));
   currentTask = pickRandom(colorTasks) || null;
@@ -246,12 +282,21 @@ async function onRollDice() {
 function completeTask(success) {
   if (!currentTask || !state.awaitingTaskDecision) return;
 
+  state.stats.completed += 1;
+
   if (success) {
     state.score += currentTask.points;
+    state.stats.success += 1;
+    state.stats.streak += 1;
+    state.stats.bestStreak = Math.max(state.stats.bestStreak, state.stats.streak);
     ui.taskHint.textContent = `Отлично! +${currentTask.points} очков.`;
+    pushHistory(`✅ «${currentTask.title}» выполнено. +${currentTask.points} очков.`);
     showConfetti();
   } else {
+    state.stats.fail += 1;
+    state.stats.streak = 0;
     ui.taskHint.textContent = `Не выполнено. Штраф: ${currentTask.penalty}`;
+    pushHistory(`❌ «${currentTask.title}» не выполнено. Штраф: ${currentTask.penalty}`);
     showPoopFx();
   }
 
@@ -318,6 +363,7 @@ function showFeedbackImage(src) {
 }
 
 function playFeedbackSound(soundList, isGood) {
+  if (!state.soundEnabled) return;
   if (feedbackSound) {
     feedbackSound.pause();
     feedbackSound = null;
@@ -360,15 +406,19 @@ function checkWin() {
 
 function renderAll() {
   ensureStartCell();
+  applyTheme();
   renderColorOptions();
   renderStats();
   renderBoard();
   renderLegend();
   renderAdminLists();
+  renderHistory();
   renderTaskColorSelect();
   applyTaskMedia(currentTask);
   ui.targetScoreInput.value = state.targetScore;
   ui.pawnShapeSelect.value = state.pawn?.shape || "circle";
+  ui.soundToggleBtn.textContent = state.soundEnabled ? "🔊 Звук включён" : "🔇 Звук выключен";
+  ui.themeToggleBtn.textContent = state.theme === "light" ? "🌙 Тёмная тема" : "☀️ Светлая тема";
 }
 
 function renderColorOptions() {
@@ -388,6 +438,23 @@ function renderStats() {
   const percent = clamp(Math.round((state.score / Math.max(1, state.targetScore)) * 100), 0, 100);
   ui.goalProgress.style.width = `${percent}%`;
   ui.goalProgressLabel.textContent = `${percent}% до цели`;
+
+  const successRate = state.stats.completed
+    ? Math.round((state.stats.success / state.stats.completed) * 100)
+    : 0;
+  ui.completedTasksValue.textContent = state.stats.completed;
+  ui.successRateValue.textContent = `${successRate}%`;
+  ui.streakValue.textContent = `${state.stats.streak} (лучшее: ${state.stats.bestStreak})`;
+}
+
+function renderHistory() {
+  ui.historyList.innerHTML = "";
+  const log = state.history.length ? state.history : ["Игра готова. Сделайте первый ход."];
+  log.forEach((line) => {
+    const item = document.createElement("li");
+    item.textContent = line;
+    ui.historyList.appendChild(item);
+  });
 }
 
 function renderBoard() {
@@ -561,6 +628,72 @@ function applyTaskMedia(task) {
   if (task?.audio) ui.taskAudio.src = task.audio;
 }
 
+function pushHistory(message) {
+  state.history.unshift(message);
+  state.history = state.history.slice(0, 14);
+}
+
+function toggleTheme() {
+  state.theme = state.theme === "light" ? "dark" : "light";
+  saveAndRender();
+}
+
+function applyTheme() {
+  document.body.dataset.theme = state.theme || "dark";
+}
+
+function toggleSound() {
+  state.soundEnabled = !state.soundEnabled;
+  if (!state.soundEnabled && feedbackSound) {
+    feedbackSound.pause();
+    feedbackSound = null;
+  }
+  saveAndRender();
+}
+
+function onHotkeys(event) {
+  if (event.target.matches("input, textarea, select")) return;
+  if (ui.feedbackOverlay.hidden === false && event.key === "Escape") {
+    closeFeedbackOverlay();
+    return;
+  }
+
+  if (event.code === "Space") {
+    event.preventDefault();
+    onRollDice();
+  }
+
+  if (state.awaitingTaskDecision && event.key.toLowerCase() === "s") completeTask(true);
+  if (state.awaitingTaskDecision && event.key.toLowerCase() === "f") completeTask(false);
+}
+
+function exportState() {
+  const file = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file);
+  a.download = "chip-game-state.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function importStateFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  try {
+    const raw = await file.text();
+    const parsed = JSON.parse(raw);
+    const next = sanitizeState(parsed);
+    Object.assign(state, next);
+    currentTask = null;
+    saveAndRender();
+  } catch {
+    ui.diceResult.textContent = "Не удалось импортировать JSON. Проверьте формат файла.";
+  }
+
+  event.target.value = "";
+}
+
 function saveAndRender() {
   ensureStartCell();
   saveState();
@@ -609,16 +742,22 @@ function loadState() {
     if (!raw) return structuredClone(defaults);
 
     const parsed = JSON.parse(raw);
-    return {
-      ...structuredClone(defaults),
-      ...parsed,
-      pawn: { ...structuredClone(defaults.pawn), ...parsed.pawn },
-      cells: parsed.cells?.length ? parsed.cells : structuredClone(defaults.cells),
-      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : structuredClone(defaults.tasks)
-    };
+    return sanitizeState(parsed);
   } catch {
     return structuredClone(defaults);
   }
+}
+
+function sanitizeState(parsed) {
+  return {
+    ...structuredClone(defaults),
+    ...parsed,
+    pawn: { ...structuredClone(defaults.pawn), ...parsed?.pawn },
+    stats: { ...structuredClone(defaults.stats), ...parsed?.stats },
+    cells: parsed?.cells?.length ? parsed.cells : structuredClone(defaults.cells),
+    tasks: Array.isArray(parsed?.tasks) ? parsed.tasks : structuredClone(defaults.tasks),
+    history: Array.isArray(parsed?.history) ? parsed.history.slice(0, 14) : []
+  };
 }
 
 function saveState() {
