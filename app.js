@@ -1,4 +1,26 @@
-const STORAGE_KEY = "chip-game-state-v4";
+const STORAGE_KEY = "chip-game-state-v5";
+
+const CARD_TYPES = {
+  purple: { label: "Сиреневые", icon: "🟣" },
+  red: { label: "Красные", icon: "🔴" },
+  blue: { label: "Синие", icon: "🔵" },
+  green: { label: "Зелёные", icon: "🟢" }
+};
+
+const WIN_TARGET = { purple: 1, red: 2, blue: 3, green: 4 };
+
+const COLOR_TO_CARD = {
+  "#c792ea": "purple",
+  "#f06292": "red",
+  "#64b5f6": "blue",
+  "#5dd39e": "green"
+};
+
+const EXCHANGE_RULES = {
+  purpleToRed: { from: "purple", to: "red", fromAmount: 1, toAmount: 2, label: "1 сиреневая → 2 красные" },
+  redToBlue: { from: "red", to: "blue", fromAmount: 1, toAmount: 2, label: "1 красная → 2 синие" },
+  blueToGreen: { from: "blue", to: "green", fromAmount: 1, toAmount: 2, label: "1 синяя → 2 зелёные" }
+};
 
 const COLOR_PRESETS = [
   { value: "#c792ea", label: "Сиреневый" },
@@ -24,7 +46,8 @@ const SUCCESS_EMOJI_BURST = ["🎉", "🎊", "✨", "🥳", "🎇", "🎆", "�
 const FAIL_EMOJI_BURST = ["💩", "☠️", "💀", "🤢", "👎", "😵", "🫠", "😬", "🪦"];
 
 const defaults = {
-  targetScore: 20,
+  players: [{ id: crypto.randomUUID(), name: "Игрок 1", cards: { purple: 0, red: 0, blue: 0, green: 0 } }],
+  currentPlayerIndex: 0,
   score: 0,
   turn: 0,
   pawnIndex: 0,
@@ -46,7 +69,7 @@ const defaults = {
       color: "#5dd39e",
       title: "Лесной квест",
       description: "Назовите 3 вида деревьев.",
-      points: 3,
+      points: 1,
       penalty: "Сделайте 5 хлопков над головой.",
       image: "",
       audio: ""
@@ -56,7 +79,7 @@ const defaults = {
       color: "#64b5f6",
       title: "Речной квест",
       description: "Скажите скороговорку без ошибок.",
-      points: 4,
+      points: 1,
       penalty: "Назовите 5 стран за 10 секунд.",
       image: "",
       audio: ""
@@ -71,7 +94,7 @@ const ui = {
   fxLayer: document.getElementById("fxLayer"),
   scoreValue: document.getElementById("scoreValue"),
   turnValue: document.getElementById("turnValue"),
-  targetScoreValue: document.getElementById("targetScoreValue"),
+  currentPlayerValue: document.getElementById("currentPlayerValue"),
   goalProgress: document.getElementById("goalProgress"),
   goalProgressLabel: document.getElementById("goalProgressLabel"),
   completedTasksValue: document.getElementById("completedTasksValue"),
@@ -94,7 +117,13 @@ const ui = {
   soundToggleBtn: document.getElementById("soundToggleBtn"),
   adminPanel: document.getElementById("adminPanel"),
   settingsForm: document.getElementById("settingsForm"),
-  targetScoreInput: document.getElementById("targetScoreInput"),
+  playersPanel: document.getElementById("playersPanel"),
+  playerForm: document.getElementById("playerForm"),
+  playerNameInput: document.getElementById("playerNameInput"),
+  playersAdminList: document.getElementById("playersAdminList"),
+  exchangeForm: document.getElementById("exchangeForm"),
+  exchangePlayerSelect: document.getElementById("exchangePlayerSelect"),
+  exchangeRuleSelect: document.getElementById("exchangeRuleSelect"),
   pawnForm: document.getElementById("pawnForm"),
   pawnShapeSelect: document.getElementById("pawnShapeSelect"),
   pawnImageUpload: document.getElementById("pawnImageUpload"),
@@ -107,7 +136,6 @@ const ui = {
   taskColorSelect: document.getElementById("taskColorSelect"),
   taskTitleInput: document.getElementById("taskTitleInput"),
   taskDescriptionInput: document.getElementById("taskDescriptionInput"),
-  taskPointsInput: document.getElementById("taskPointsInput"),
   taskPenaltyInput: document.getElementById("taskPenaltyInput"),
   taskImageInput: document.getElementById("taskImageInput"),
   taskAudioInput: document.getElementById("taskAudioInput"),
@@ -160,9 +188,31 @@ function wireEvents() {
     ui.adminToggle.textContent = hidden ? "Скрыть админ-панель" : "Показать админ-панель";
   });
 
-  ui.settingsForm.addEventListener("submit", (event) => {
+  ui.playerForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    state.targetScore = Number(ui.targetScoreInput.value);
+    const name = ui.playerNameInput.value.trim();
+    if (!name) return;
+    state.players.push({ id: crypto.randomUUID(), name, cards: makeEmptyCards() });
+    ui.playerForm.reset();
+    saveAndRender();
+  });
+
+  ui.exchangeForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const playerId = ui.exchangePlayerSelect.value;
+    const ruleKey = ui.exchangeRuleSelect.value;
+    const player = state.players.find((item) => item.id === playerId);
+    const rule = EXCHANGE_RULES[ruleKey];
+    if (!player || !rule) return;
+
+    if ((player.cards[rule.from] || 0) < rule.fromAmount) {
+      ui.diceResult.textContent = `Недостаточно карточек для обмена: ${rule.label}.`;
+      return;
+    }
+
+    player.cards[rule.from] -= rule.fromAmount;
+    player.cards[rule.to] = (player.cards[rule.to] || 0) + rule.toAmount;
+    pushHistory(`🔁 ${player.name}: обмен ${rule.label}.`);
     saveAndRender();
   });
 
@@ -199,7 +249,7 @@ function wireEvents() {
       color: normalizeColor(ui.taskColorSelect.value),
       title: ui.taskTitleInput.value.trim(),
       description: ui.taskDescriptionInput.value.trim(),
-      points: Number(ui.taskPointsInput.value),
+      points: 1,
       penalty: ui.taskPenaltyInput.value.trim(),
       image: ui.taskImageInput.value.trim(),
       audio: ui.taskAudioInput.value.trim()
@@ -210,8 +260,9 @@ function wireEvents() {
   });
 
   ui.newGameBtn.addEventListener("click", () => {
-    state.score = 0;
     state.turn = 0;
+    state.currentPlayerIndex = 0;
+    state.players = state.players.map((player) => ({ ...player, cards: makeEmptyCards() }));
     state.stats = structuredClone(defaults.stats);
     state.history = [];
     state.awaitingTaskDecision = false;
@@ -253,8 +304,9 @@ async function onRollDice() {
   state.pawnIndex = route[route.length - 1];
 
   const cell = state.cells[state.pawnIndex];
-  ui.diceResult.textContent = `Выпало ${dice}. Вы на ячейке «${cell.name}».`;
-  pushHistory(`🎲 Ход ${state.turn}: выпало ${dice}, переход на «${cell.name}».`);
+  const player = getCurrentPlayer();
+  ui.diceResult.textContent = `Выпало ${dice}. ${player?.name || "Игрок"} на ячейке «${cell.name}».`;
+  pushHistory(`🎲 Ход ${state.turn} (${player?.name || "Игрок"}): выпало ${dice}, переход на «${cell.name}».`);
 
   const colorTasks = state.tasks.filter((task) => normalizeColor(task.color) === normalizeColor(cell.color));
   currentTask = pickRandom(colorTasks) || null;
@@ -265,6 +317,7 @@ async function onRollDice() {
     ui.taskDescription.textContent = "";
     ui.taskActions.hidden = true;
     state.awaitingTaskDecision = false;
+    advancePlayerTurn();
   } else {
     ui.taskHint.textContent = "Оцените результат выполнения задания:";
     ui.taskTitle.textContent = currentTask.title;
@@ -285,12 +338,19 @@ function completeTask(success) {
   state.stats.completed += 1;
 
   if (success) {
-    state.score += currentTask.points;
+    const player = getCurrentPlayer();
+    const cardType = getCardTypeByTask(currentTask);
+    if (player && cardType) {
+      player.cards[cardType] = (player.cards[cardType] || 0) + 1;
+      ui.taskHint.textContent = `Отлично! ${CARD_TYPES[cardType].icon} +1 карточка (${CARD_TYPES[cardType].label.toLowerCase()}).`;
+      pushHistory(`✅ ${player.name}: «${currentTask.title}» выполнено. +1 ${CARD_TYPES[cardType].label.toLowerCase()} карточка.`);
+    } else {
+      ui.taskHint.textContent = "Отлично! Карточка получена.";
+      pushHistory(`✅ «${currentTask.title}» выполнено.`);
+    }
     state.stats.success += 1;
     state.stats.streak += 1;
     state.stats.bestStreak = Math.max(state.stats.bestStreak, state.stats.streak);
-    ui.taskHint.textContent = `Отлично! +${currentTask.points} очков.`;
-    pushHistory(`✅ «${currentTask.title}» выполнено. +${currentTask.points} очков.`);
     showConfetti();
   } else {
     state.stats.fail += 1;
@@ -302,6 +362,7 @@ function completeTask(success) {
 
   state.awaitingTaskDecision = false;
   ui.taskActions.hidden = true;
+  advancePlayerTurn();
   renderStats();
   saveState();
   showFeedbackOverlay(success);
@@ -398,9 +459,10 @@ function closeFeedbackOverlay() {
 }
 
 function checkWin() {
-  if (state.score < state.targetScore) return;
+  const winner = state.players.find((player) => hasWinCards(player.cards));
+  if (!winner) return;
   if (state.pawnIndex !== getStartIndex()) return;
-  ui.winText.textContent = `Вы набрали ${state.score} очков и финишировали на старте за ${state.turn} ходов.`;
+  ui.winText.textContent = `Победа ${winner.name}! Собран набор: 🟣1 🔴2 🔵3 🟢4. Ходов: ${state.turn}.`;
   ui.gameWinDialog.showModal();
 }
 
@@ -414,8 +476,10 @@ function renderAll() {
   renderAdminLists();
   renderHistory();
   renderTaskColorSelect();
+  renderPlayers();
+  renderPlayersAdmin();
+  renderExchangePlayers();
   applyTaskMedia(currentTask);
-  ui.targetScoreInput.value = state.targetScore;
   ui.pawnShapeSelect.value = state.pawn?.shape || "circle";
   ui.soundToggleBtn.textContent = state.soundEnabled ? "🔊 Звук включён" : "🔇 Звук выключен";
   ui.themeToggleBtn.textContent = state.theme === "light" ? "🌙 Тёмная тема" : "☀️ Светлая тема";
@@ -432,12 +496,14 @@ function renderColorOptions() {
 }
 
 function renderStats() {
-  ui.scoreValue.textContent = state.score;
+  const currentPlayer = getCurrentPlayer();
+  ui.scoreValue.textContent = currentPlayer ? countCards(currentPlayer.cards) : 0;
+  ui.currentPlayerValue.textContent = currentPlayer?.name || "—";
   ui.turnValue.textContent = state.turn;
-  ui.targetScoreValue.textContent = state.targetScore;
-  const percent = clamp(Math.round((state.score / Math.max(1, state.targetScore)) * 100), 0, 100);
+
+  const percent = currentPlayer ? getPlayerProgressPercent(currentPlayer.cards) : 0;
   ui.goalProgress.style.width = `${percent}%`;
-  ui.goalProgressLabel.textContent = `${percent}% до цели`;
+  ui.goalProgressLabel.textContent = `${percent}% до победного набора`;
 
   const successRate = state.stats.completed
     ? Math.round((state.stats.success / state.stats.completed) * 100)
@@ -532,6 +598,82 @@ function renderAdminLists() {
     li.textContent = `[${task.color}] ${task.title} • +${task.points} очков`;
     ui.tasksList.appendChild(li);
   });
+}
+
+function renderPlayers() {
+  ui.playersPanel.innerHTML = "";
+  state.players.forEach((player, index) => {
+    const card = document.createElement("article");
+    card.className = "player-card";
+    if (index === state.currentPlayerIndex) card.classList.add("active");
+
+    const cards = player.cards || makeEmptyCards();
+    card.innerHTML = `
+      <h3>${player.name}</h3>
+      <p>${renderCardStatus(cards)}</p>
+    `;
+    ui.playersPanel.appendChild(card);
+  });
+}
+
+function renderPlayersAdmin() {
+  ui.playersAdminList.innerHTML = "";
+  state.players.forEach((player, index) => {
+    const li = document.createElement("li");
+    const activeMark = index === state.currentPlayerIndex ? " • текущий" : "";
+    li.textContent = `${player.name}${activeMark} — ${renderCardStatus(player.cards || makeEmptyCards())}`;
+    ui.playersAdminList.appendChild(li);
+  });
+}
+
+function renderExchangePlayers() {
+  ui.exchangePlayerSelect.innerHTML = "";
+  state.players.forEach((player) => {
+    const option = document.createElement("option");
+    option.value = player.id;
+    option.textContent = player.name;
+    ui.exchangePlayerSelect.appendChild(option);
+  });
+}
+
+function renderCardStatus(cards) {
+  return `${CARD_TYPES.purple.icon}${cards.purple || 0}/${WIN_TARGET.purple} · ${CARD_TYPES.red.icon}${cards.red || 0}/${WIN_TARGET.red} · ${CARD_TYPES.blue.icon}${cards.blue || 0}/${WIN_TARGET.blue} · ${CARD_TYPES.green.icon}${cards.green || 0}/${WIN_TARGET.green}`;
+}
+
+function getCurrentPlayer() {
+  if (!state.players.length) return null;
+  state.currentPlayerIndex = clamp(state.currentPlayerIndex || 0, 0, state.players.length - 1);
+  return state.players[state.currentPlayerIndex] || null;
+}
+
+function advancePlayerTurn() {
+  if (!state.players.length) return;
+  state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+}
+
+function getCardTypeByTask(task) {
+  return COLOR_TO_CARD[normalizeColor(task?.color || "")];
+}
+
+function makeEmptyCards() {
+  return { purple: 0, red: 0, blue: 0, green: 0 };
+}
+
+function hasWinCards(cards) {
+  return ["purple", "red", "blue", "green"].every((key) => (cards?.[key] || 0) >= WIN_TARGET[key]);
+}
+
+function countCards(cards) {
+  return (cards?.purple || 0) + (cards?.red || 0) + (cards?.blue || 0) + (cards?.green || 0);
+}
+
+function getPlayerProgressPercent(cards) {
+  const totalNeed = WIN_TARGET.purple + WIN_TARGET.red + WIN_TARGET.blue + WIN_TARGET.green;
+  const sum = Math.min(cards.purple || 0, WIN_TARGET.purple)
+    + Math.min(cards.red || 0, WIN_TARGET.red)
+    + Math.min(cards.blue || 0, WIN_TARGET.blue)
+    + Math.min(cards.green || 0, WIN_TARGET.green);
+  return clamp(Math.round((sum / totalNeed) * 100), 0, 100);
 }
 
 async function animateDiceRoll(finalValue) {
@@ -749,9 +891,19 @@ function loadState() {
 }
 
 function sanitizeState(parsed) {
+  const sanitizedPlayers = Array.isArray(parsed?.players) && parsed.players.length
+    ? parsed.players.map((player, index) => ({
+        id: player?.id || crypto.randomUUID(),
+        name: player?.name || `Игрок ${index + 1}`,
+        cards: { ...makeEmptyCards(), ...player?.cards }
+      }))
+    : structuredClone(defaults.players);
+
   return {
     ...structuredClone(defaults),
     ...parsed,
+    players: sanitizedPlayers,
+    currentPlayerIndex: clamp(parsed?.currentPlayerIndex ?? 0, 0, Math.max(0, sanitizedPlayers.length - 1)),
     pawn: { ...structuredClone(defaults.pawn), ...parsed?.pawn },
     stats: { ...structuredClone(defaults.stats), ...parsed?.stats },
     cells: parsed?.cells?.length ? parsed.cells : structuredClone(defaults.cells),
