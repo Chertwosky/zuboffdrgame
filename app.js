@@ -1,4 +1,4 @@
-const STORAGE_KEY = "chip-game-state-v2";
+const STORAGE_KEY = "chip-game-state-v3";
 
 const COLOR_PRESETS = [
   { value: "#c792ea", label: "Сиреневый" },
@@ -7,24 +7,20 @@ const COLOR_PRESETS = [
   { value: "#64b5f6", label: "Голубой" }
 ];
 
-const GOOD_SOUNDS = ["music/success1.mp3", "music/success2.mp3", "music/success3.mp3"];
-const BAD_SOUNDS = ["musicbad/fail1.mp3", "musicbad/fail2.mp3", "musicbad/fail3.mp3"];
-const SUCCESS_EMOJI_BURST = [
-  "🎉",
-  "🎊",
-  "✨",
-  "🥳",
-  "🎇",
-  "🎆",
-  "🌟",
-  "💫",
-  "🪩",
-  "🎈",
-  "💖",
-  "🍾",
-  "🙌",
-  "💐"
-];
+const MEDIA_LIBRARY = {
+  success: {
+    videos: ["media/videos/success/success-video-01.mp4", "media/videos/success/success-video-02.mp4"],
+    images: ["media/images/success/success-image-01.jpg", "media/images/success/success-image-02.jpg"],
+    sounds: ["media/sounds/success/success-sound-01.mp3", "media/sounds/success/success-sound-02.mp3"]
+  },
+  fail: {
+    videos: ["media/videos/fail/fail-video-01.mp4", "media/videos/fail/fail-video-02.mp4"],
+    images: ["media/images/fail/fail-image-01.jpg", "media/images/fail/fail-image-02.jpg"],
+    sounds: ["media/sounds/fail/fail-sound-01.mp3", "media/sounds/fail/fail-sound-02.mp3"]
+  }
+};
+
+const SUCCESS_EMOJI_BURST = ["🎉", "🎊", "✨", "🥳", "🎇", "🎆", "🌟", "💫", "🪩", "🎈", "💖", "🍾", "🙌", "💐"];
 const FAIL_EMOJI_BURST = ["💩", "☠️", "💀", "🤢", "👎", "😵", "🫠", "😬", "🪦"];
 
 const defaults = {
@@ -72,6 +68,8 @@ const ui = {
   scoreValue: document.getElementById("scoreValue"),
   turnValue: document.getElementById("turnValue"),
   targetScoreValue: document.getElementById("targetScoreValue"),
+  progressText: document.getElementById("progressText"),
+  scoreProgressBar: document.getElementById("scoreProgressBar"),
   diceResult: document.getElementById("diceResult"),
   rollDiceBtn: document.getElementById("rollDiceBtn"),
   taskHint: document.getElementById("taskHint"),
@@ -106,11 +104,18 @@ const ui = {
   tasksList: document.getElementById("tasksList"),
   gameWinDialog: document.getElementById("gameWinDialog"),
   winText: document.getElementById("winText"),
-  newGameBtn: document.getElementById("newGameBtn")
+  newGameBtn: document.getElementById("newGameBtn"),
+  resultMediaOverlay: document.getElementById("resultMediaOverlay"),
+  overlayTitle: document.getElementById("overlayTitle"),
+  closeOverlayBtn: document.getElementById("closeOverlayBtn"),
+  overlayVideo: document.getElementById("overlayVideo"),
+  overlayImage: document.getElementById("overlayImage"),
+  overlayAudio: document.getElementById("overlayAudio")
 };
 
 let currentTask = null;
 let draggingCellId = null;
+let overlayTimer = null;
 
 renderAll();
 wireEvents();
@@ -119,6 +124,12 @@ function wireEvents() {
   ui.rollDiceBtn.addEventListener("click", onRollDice);
   ui.successBtn.addEventListener("click", () => completeTask(true));
   ui.failBtn.addEventListener("click", () => completeTask(false));
+  ui.closeOverlayBtn.addEventListener("click", hideResultOverlay);
+  ui.overlayVideo.addEventListener("ended", hideResultOverlay);
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !ui.resultMediaOverlay.hidden) hideResultOverlay();
+  });
 
   ui.adminToggle.addEventListener("click", () => {
     const hidden = ui.adminPanel.hasAttribute("hidden");
@@ -185,7 +196,10 @@ function wireEvents() {
 }
 
 async function onRollDice() {
-  if (state.awaitingTaskDecision) return;
+  if (state.awaitingTaskDecision) {
+    ui.diceResult.textContent = "Сначала оцените выполнение текущего задания.";
+    return;
+  }
   if (state.cells.length < 2) {
     ui.diceResult.textContent = "Добавьте минимум 2 ячейки для игры.";
     return;
@@ -196,34 +210,32 @@ async function onRollDice() {
   await animateDiceRoll(dice);
 
   const route = [];
-  for (let i = 1; i <= dice; i += 1) {
-    route.push((state.pawnIndex + i) % state.cells.length);
-  }
+  for (let i = 1; i <= dice; i += 1) route.push((state.pawnIndex + i) % state.cells.length);
+
   await animatePawnRoute(route);
   state.pawnIndex = route[route.length - 1];
 
   const cell = state.cells[state.pawnIndex];
   ui.diceResult.textContent = `Выпало ${dice}. Вы на ячейке «${cell.name}».`;
 
-  const color = normalizeColor(cell.color);
-  const colorTasks = state.tasks.filter((task) => normalizeColor(task.color) === color);
+  const colorTasks = state.tasks.filter((task) => normalizeColor(task.color) === normalizeColor(cell.color));
   currentTask = colorTasks[Math.floor(Math.random() * colorTasks.length)] || null;
 
   if (!currentTask) {
-    ui.taskHint.textContent = "Для этого цвета пока нет заданий. Добавьте в админ-панели.";
+    ui.taskHint.textContent = "Для этого цвета пока нет заданий. Добавьте их в админ-панели.";
     ui.taskTitle.textContent = "";
     ui.taskDescription.textContent = "";
     ui.taskActions.hidden = true;
     state.awaitingTaskDecision = false;
   } else {
-    ui.taskHint.textContent = "";
+    ui.taskHint.textContent = "Оцените результат выполнения задания ниже.";
     ui.taskTitle.textContent = currentTask.title;
     ui.taskDescription.textContent = currentTask.description;
     ui.taskActions.hidden = false;
     state.awaitingTaskDecision = true;
   }
 
-  applyMedia(currentTask);
+  applyTaskMedia(currentTask);
   renderBoard();
   renderStats();
   saveState();
@@ -234,13 +246,13 @@ function completeTask(success) {
 
   if (success) {
     state.score += currentTask.points;
-    ui.taskHint.textContent = `Отлично! +${currentTask.points} очков! 🎉🎊✨🥳🎆🎇🌟💫🪩🎈🍾💖🙌💐✨🎉🎊`;
+    ui.taskHint.textContent = `Отлично! +${currentTask.points} очков.`;
     showConfetti();
-    playRandomSound(GOOD_SOUNDS);
+    showResultMedia("success", `Успех! +${currentTask.points} очков`);
   } else {
-    ui.taskHint.textContent = `Не выполнено... 💩☠️💀🤢😵‍💫👎 ${currentTask.penalty}`;
+    ui.taskHint.textContent = `Не выполнено. Штраф: ${currentTask.penalty}`;
     showPoopFx();
-    playRandomSound(BAD_SOUNDS);
+    showResultMedia("fail", "Задание не выполнено");
   }
 
   state.awaitingTaskDecision = false;
@@ -248,6 +260,72 @@ function completeTask(success) {
   checkWin();
   renderStats();
   saveState();
+}
+
+function showResultMedia(type, title) {
+  hideResultOverlay();
+
+  const pool = MEDIA_LIBRARY[type];
+  const videoSrc = pickRandom(pool.videos);
+  const imageSrc = pickRandom(pool.images);
+  const soundSrc = pickRandom(pool.sounds);
+  const useVideo = Boolean(videoSrc) && (Math.random() < 0.6 || !imageSrc);
+
+  ui.resultMediaOverlay.hidden = false;
+  ui.resultMediaOverlay.setAttribute("aria-hidden", "false");
+  ui.overlayTitle.textContent = title;
+
+  if (useVideo) {
+    ui.overlayVideo.hidden = false;
+    ui.overlayVideo.src = videoSrc;
+    ui.overlayVideo.currentTime = 0;
+    ui.overlayVideo.volume = 0.9;
+    ui.overlayVideo.play().catch(() => toneFallback(type === "success"));
+
+    ui.overlayImage.hidden = true;
+    ui.overlayImage.removeAttribute("src");
+    ui.overlayAudio.pause();
+    ui.overlayAudio.removeAttribute("src");
+    return;
+  }
+
+  ui.overlayVideo.pause();
+  ui.overlayVideo.hidden = true;
+  ui.overlayVideo.removeAttribute("src");
+
+  ui.overlayImage.hidden = false;
+  if (imageSrc) ui.overlayImage.src = imageSrc;
+
+  if (soundSrc) {
+    ui.overlayAudio.src = soundSrc;
+    ui.overlayAudio.volume = 0.85;
+    ui.overlayAudio.currentTime = 0;
+    ui.overlayAudio.play().catch(() => toneFallback(type === "success"));
+  } else {
+    toneFallback(type === "success");
+  }
+
+  overlayTimer = setTimeout(hideResultOverlay, 4200);
+}
+
+function hideResultOverlay() {
+  if (overlayTimer) {
+    clearTimeout(overlayTimer);
+    overlayTimer = null;
+  }
+
+  ui.resultMediaOverlay.hidden = true;
+  ui.resultMediaOverlay.setAttribute("aria-hidden", "true");
+
+  ui.overlayVideo.pause();
+  ui.overlayVideo.hidden = true;
+  ui.overlayVideo.removeAttribute("src");
+
+  ui.overlayAudio.pause();
+  ui.overlayAudio.removeAttribute("src");
+
+  ui.overlayImage.hidden = true;
+  ui.overlayImage.removeAttribute("src");
 }
 
 function checkWin() {
@@ -265,7 +343,7 @@ function renderAll() {
   renderLegend();
   renderAdminLists();
   renderTaskColorSelect();
-  applyMedia(currentTask);
+  applyTaskMedia(currentTask);
   ui.targetScoreInput.value = state.targetScore;
   ui.pawnShapeSelect.value = state.pawn?.shape || "circle";
 }
@@ -284,6 +362,15 @@ function renderStats() {
   ui.scoreValue.textContent = state.score;
   ui.turnValue.textContent = state.turn;
   ui.targetScoreValue.textContent = state.targetScore;
+
+  const progress = clamp((state.score / Math.max(1, state.targetScore)) * 100, 0, 100);
+  ui.scoreProgressBar.style.width = `${progress}%`;
+
+  if (state.score >= state.targetScore) {
+    ui.progressText.textContent = "Цель набрана! Вернитесь на старт для победы.";
+  } else {
+    ui.progressText.textContent = `До цели осталось ${state.targetScore - state.score} очков.`;
+  }
 }
 
 function renderBoard() {
@@ -301,7 +388,9 @@ function renderBoard() {
     node.style.background = cell.color;
     node.title = `${cell.name}: цвет ${cell.color}, категория ${cell.category}`;
     node.innerHTML = `<span>${cell.name}</span>`;
+
     if (cell.isStart) node.classList.add("start");
+    if (index === state.pawnIndex) node.classList.add("current");
 
     node.addEventListener("dragstart", () => (draggingCellId = cell.id));
     node.addEventListener("dragover", (event) => event.preventDefault());
@@ -324,7 +413,7 @@ function renderLegend() {
   state.cells.forEach((cell, index) => {
     const item = document.createElement("div");
     item.className = "legend-item";
-    item.innerHTML = `<i style="background:${cell.color}"></i>${index + 1}. ${cell.name} — ${cell.color}, категория ${cell.category}`;
+    item.innerHTML = `<i style="background:${cell.color}"></i>${index + 1}. ${cell.name} — категория ${cell.category}${cell.isStart ? " (старт)" : ""}`;
     ui.categoryLegend.appendChild(item);
   });
 }
@@ -366,9 +455,8 @@ async function animateDiceRoll(finalValue) {
   ui.rollDiceBtn.disabled = true;
   ui.rollDiceBtn.classList.add("rolling");
   for (let i = 0; i < 8; i += 1) {
-    const fake = 1 + Math.floor(Math.random() * 6);
-    ui.diceResult.textContent = `Кубик крутится... ${fake}`;
-    await wait(85);
+    ui.diceResult.textContent = `Кубик крутится... ${1 + Math.floor(Math.random() * 6)}`;
+    await wait(90);
   }
   ui.diceResult.textContent = `Кубик остановился: ${finalValue}`;
   ui.rollDiceBtn.classList.remove("rolling");
@@ -404,11 +492,8 @@ function burstFx(symbols, count = 24) {
   }
 }
 
-function playRandomSound(list) {
-  const src = list[Math.floor(Math.random() * list.length)];
-  const audio = new Audio(src);
-  audio.volume = 0.45;
-  audio.play().catch(() => toneFallback(list === GOOD_SOUNDS));
+function pickRandom(list) {
+  return list[Math.floor(Math.random() * list.length)] || "";
 }
 
 function toneFallback(isGood) {
@@ -453,7 +538,7 @@ function generateLoopPositions(count) {
   return arr;
 }
 
-function applyMedia(task) {
+function applyTaskMedia(task) {
   ui.taskImage.hidden = !(task && task.image);
   if (task?.image) ui.taskImage.src = task.image;
 
@@ -502,6 +587,7 @@ function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return structuredClone(defaults);
+
     const parsed = JSON.parse(raw);
     return {
       ...structuredClone(defaults),
