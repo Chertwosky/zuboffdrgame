@@ -312,7 +312,16 @@ async function onRollDice() {
   currentTask = pickRandom(colorTasks) || null;
 
   if (!currentTask) {
-    ui.taskHint.textContent = "Для этого цвета пока нет заданий. Добавьте их в админ-панели.";
+    const fallbackColor = pickReplacementColor(cell.color);
+    if (fallbackColor) {
+      reassignCategoryColor(cell.category, fallbackColor);
+      const updatedCell = state.cells[state.pawnIndex];
+      pushHistory(`🎨 Категория ${cell.category}: цвет изменён на ${fallbackColor}, так как задания для ${normalizeColor(cell.color)} закончились.`);
+      ui.taskHint.textContent = `Задания для этого цвета закончились. Цвет категории сменён на ${fallbackColor}.`;
+      ui.diceResult.textContent = `Выпало ${dice}. ${player?.name || "Игрок"} на ячейке «${updatedCell.name}». Цвет категории обновлён.`;
+    } else {
+      ui.taskHint.textContent = "Для этого цвета пока нет заданий. Добавьте их в админ-панели.";
+    }
     ui.taskTitle.textContent = "";
     ui.taskDescription.textContent = "";
     ui.taskActions.hidden = true;
@@ -855,6 +864,19 @@ function getStartIndex() {
 function pickRandom(list) {
   if (!Array.isArray(list) || !list.length) return "";
   return list[Math.floor(Math.random() * list.length)];
+}
+
+function pickReplacementColor(exhaustedColor) {
+  const exhausted = normalizeColor(exhaustedColor);
+  const colorsWithTasks = [...new Set(state.tasks.map((task) => normalizeColor(task.color)))];
+  const remainingColors = colorsWithTasks.filter((color) => color !== exhausted);
+  return pickRandom(remainingColors);
+}
+
+function reassignCategoryColor(category, newColor) {
+  state.cells.forEach((cell) => {
+    if (cell.category === category) cell.color = normalizeColor(newColor);
+  });
 }
 
 function normalizeColor(color) {
