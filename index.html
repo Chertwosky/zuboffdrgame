@@ -187,7 +187,7 @@
 
         <form id="mediaSettingsForm" class="admin-block">
           <h3>Медиа и звуки (полное редактирование)</h3>
-          <p class="subtle">По одному URL/Data URI на строку. Видео для успеха и провала подхватываются автоматически из папки <code>media/</code> (вручную их задавать не нужно).</p>
+          <p class="subtle">По одному URL/Data URI на строку. Реакции работают только через видео из корневой папки <code>media/</code>.</p>
 
           <label>Успех: видео (авто из <code>media/</code>)
             <textarea id="successVideosInput" rows="3" placeholder="https://..."></textarea>
@@ -195,13 +195,6 @@
           <div class="upload-row">
             <input type="file" id="successVideosUpload" accept="video/*" multiple />
             <button class="button ghost" id="addSuccessVideosBtn" type="button">Добавить загруженные видео</button>
-          </div>
-          <label>Успех: картинки/гифки
-            <textarea id="successImagesInput" rows="3" placeholder="https://..."></textarea>
-          </label>
-          <div class="upload-row">
-            <input type="file" id="successImagesUpload" accept="image/*" multiple />
-            <button class="button ghost" id="addSuccessImagesBtn" type="button">Добавить загруженные картинки/гифки</button>
           </div>
           <label>Успех: звуки
             <textarea id="successSoundsInput" rows="3" placeholder="https://..."></textarea>
@@ -217,13 +210,6 @@
           <div class="upload-row">
             <input type="file" id="failVideosUpload" accept="video/*" multiple />
             <button class="button ghost" id="addFailVideosBtn" type="button">Добавить загруженные видео</button>
-          </div>
-          <label>Провал: картинки/гифки
-            <textarea id="failImagesInput" rows="3" placeholder="https://..."></textarea>
-          </label>
-          <div class="upload-row">
-            <input type="file" id="failImagesUpload" accept="image/*" multiple />
-            <button class="button ghost" id="addFailImagesBtn" type="button">Добавить загруженные картинки/гифки</button>
           </div>
           <label>Провал: звуки
             <textarea id="failSoundsInput" rows="3" placeholder="https://..."></textarea>
@@ -273,7 +259,6 @@
   <div id="feedbackOverlay" class="feedback-overlay" hidden aria-live="assertive">
     <div class="feedback-media-wrap">
       <video id="feedbackVideo" class="feedback-media" playsinline hidden></video>
-      <img id="feedbackImage" class="feedback-media" alt="Реакция на результат" hidden />
     </div>
     <div class="feedback-copy">
       <h2 id="feedbackTitle"></h2>

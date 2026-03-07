@@ -28,12 +28,12 @@ const EXCHANGE_RULES = {
 const FEEDBACK_MEDIA = {
   success: {
     videos: [],
-    images: ["media/images/success/success-1.jpg", "media/images/success/success-2.jpg"],
+    images: [],
     sounds: ["media/sounds/success/success-1.mp3", "media/sounds/success/success-2.mp3", "media/sounds/success/success-3.mp3"]
   },
   fail: {
     videos: [],
-    images: ["media/images/success/success-1.jpg", "media/images/success/success-2.jpg"],
+    images: [],
     sounds: ["media/sounds/fail/fail-1.mp3", "media/sounds/fail/fail-2.mp3", "media/sounds/fail/fail-3.mp3"]
   }
 };
@@ -149,22 +149,16 @@ const ui = {
   categoriesEditor: document.getElementById("categoriesEditor"),
   mediaSettingsForm: document.getElementById("mediaSettingsForm"),
   successVideosInput: document.getElementById("successVideosInput"),
-  successImagesInput: document.getElementById("successImagesInput"),
   successSoundsInput: document.getElementById("successSoundsInput"),
   failVideosInput: document.getElementById("failVideosInput"),
-  failImagesInput: document.getElementById("failImagesInput"),
   failSoundsInput: document.getElementById("failSoundsInput"),
   successVideosUpload: document.getElementById("successVideosUpload"),
-  successImagesUpload: document.getElementById("successImagesUpload"),
   successSoundsUpload: document.getElementById("successSoundsUpload"),
   failVideosUpload: document.getElementById("failVideosUpload"),
-  failImagesUpload: document.getElementById("failImagesUpload"),
   failSoundsUpload: document.getElementById("failSoundsUpload"),
   addSuccessVideosBtn: document.getElementById("addSuccessVideosBtn"),
-  addSuccessImagesBtn: document.getElementById("addSuccessImagesBtn"),
   addSuccessSoundsBtn: document.getElementById("addSuccessSoundsBtn"),
   addFailVideosBtn: document.getElementById("addFailVideosBtn"),
-  addFailImagesBtn: document.getElementById("addFailImagesBtn"),
   addFailSoundsBtn: document.getElementById("addFailSoundsBtn"),
   diceRollLoopInput: document.getElementById("diceRollLoopInput"),
   pawnStepInput: document.getElementById("pawnStepInput"),
@@ -178,7 +172,6 @@ const ui = {
   tasksList: document.getElementById("tasksList"),
   feedbackOverlay: document.getElementById("feedbackOverlay"),
   feedbackVideo: document.getElementById("feedbackVideo"),
-  feedbackImage: document.getElementById("feedbackImage"),
   feedbackTitle: document.getElementById("feedbackTitle"),
   feedbackText: document.getElementById("feedbackText"),
   feedbackClose: document.getElementById("feedbackClose"),
@@ -328,16 +321,20 @@ function wireEvents() {
 
   ui.mediaSettingsForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    const sharedImages = parseLines(ui.successImagesInput.value);
+    const sharedVideos = combineVideoLists(
+      parseLines(ui.successVideosInput.value),
+      parseLines(ui.failVideosInput.value),
+      autoFeedbackVideos
+    );
     state.feedbackMedia = {
       success: {
-        videos: [...autoFeedbackVideos],
-        images: sharedImages,
+        videos: sharedVideos,
+        images: [],
         sounds: parseLines(ui.successSoundsInput.value)
       },
       fail: {
-        videos: [...autoFeedbackVideos],
-        images: sharedImages,
+        videos: sharedVideos,
+        images: [],
         sounds: parseLines(ui.failSoundsInput.value)
       }
     };
@@ -350,10 +347,8 @@ function wireEvents() {
   });
 
   ui.addSuccessVideosBtn.addEventListener("click", () => appendUploadedFiles(ui.successVideosUpload, ui.successVideosInput));
-  ui.addSuccessImagesBtn.addEventListener("click", () => appendUploadedFiles(ui.successImagesUpload, ui.successImagesInput));
   ui.addSuccessSoundsBtn.addEventListener("click", () => appendUploadedFiles(ui.successSoundsUpload, ui.successSoundsInput));
   ui.addFailVideosBtn.addEventListener("click", () => appendUploadedFiles(ui.failVideosUpload, ui.failVideosInput));
-  ui.addFailImagesBtn.addEventListener("click", () => appendUploadedFiles(ui.failImagesUpload, ui.failImagesInput));
   ui.addFailSoundsBtn.addEventListener("click", () => appendUploadedFiles(ui.failSoundsUpload, ui.failSoundsInput));
 
   ui.newGameBtn.addEventListener("click", () => {
@@ -486,7 +481,7 @@ function showFeedbackOverlay(success) {
   ui.feedbackTitle.textContent = success ? "Успех!" : "Промах";
   ui.feedbackText.textContent = text;
 
-  const visualMode = presentFeedbackVisual(mediaSet);
+  const visualMode = presentFeedbackVisual(mediaSet, success);
   if (visualMode === "video") {
     if (feedbackSound) {
       feedbackSound.pause();
@@ -500,18 +495,14 @@ function showFeedbackOverlay(success) {
   feedbackCloseTimer = setTimeout(closeFeedbackOverlay, 12000);
 }
 
-function presentFeedbackVisual(mediaSet) {
-  const wantsImage = Math.random() > 0.45;
+function presentFeedbackVisual(mediaSet, success) {
   const videoSrc = pickRandom(mediaSet.videos);
-  const imageSrc = pickRandom(mediaSet.images);
-
   stopFeedbackVideoSound();
   ui.feedbackVideo.pause();
   ui.feedbackVideo.hidden = true;
-  ui.feedbackImage.hidden = true;
   ui.feedbackVideo.removeAttribute("src");
 
-  if (!wantsImage && videoSrc) {
+  if (videoSrc) {
     ui.feedbackVideo.src = videoSrc;
     ui.feedbackVideo.loop = true;
     ui.feedbackVideo.volume = 0;
@@ -522,19 +513,12 @@ function presentFeedbackVisual(mediaSet) {
       startFeedbackVideoOneShotSound(videoSrc);
     }).catch(() => {
       ui.feedbackVideo.hidden = true;
-      showFeedbackImage(imageSrc);
+      playFeedbackSound(mediaSet.sounds, success);
     });
     return "video";
   }
 
-  showFeedbackImage(imageSrc);
-  return "image";
-}
-
-function showFeedbackImage(src) {
-  if (!src) return;
-  ui.feedbackImage.src = src;
-  ui.feedbackImage.hidden = false;
+  return "none";
 }
 
 async function startFeedbackVideoOneShotSound(videoSrc) {
@@ -583,7 +567,6 @@ function closeFeedbackOverlay() {
   ui.feedbackOverlay.hidden = true;
   ui.feedbackVideo.pause();
   ui.feedbackVideo.hidden = true;
-  ui.feedbackImage.hidden = true;
   ui.feedbackVideo.removeAttribute("src");
   if (feedbackSound) {
     feedbackSound.pause();
@@ -1121,16 +1104,14 @@ function renderCategoriesEditor() {
 function renderMediaSettings() {
   const fm = getNormalizedFeedbackMedia(state.feedbackMedia);
   ui.successVideosInput.value = (fm.success?.videos || []).join("\n");
-  ui.successVideosInput.readOnly = true;
-  ui.successVideosUpload.disabled = true;
-  ui.addSuccessVideosBtn.disabled = true;
-  ui.successImagesInput.value = (fm.success?.images || []).join("\n");
+  ui.successVideosInput.readOnly = false;
+  ui.successVideosUpload.disabled = false;
+  ui.addSuccessVideosBtn.disabled = false;
   ui.successSoundsInput.value = (fm.success?.sounds || []).join("\n");
   ui.failVideosInput.value = (fm.fail?.videos || []).join("\n");
-  ui.failVideosInput.readOnly = true;
-  ui.failVideosUpload.disabled = true;
-  ui.addFailVideosBtn.disabled = true;
-  ui.failImagesInput.value = (fm.fail?.images || []).join("\n");
+  ui.failVideosInput.readOnly = false;
+  ui.failVideosUpload.disabled = false;
+  ui.addFailVideosBtn.disabled = false;
   ui.failSoundsInput.value = (fm.fail?.sounds || []).join("\n");
 
   ui.diceRollLoopInput.value = state.gameplaySounds?.diceRollLoop || "";
@@ -1152,23 +1133,28 @@ function getNormalizedFeedbackMedia(feedbackMedia = FEEDBACK_MEDIA) {
     ...fallback.fail,
     ...(feedbackMedia?.fail || {})
   };
-  const sharedVideos = autoFeedbackVideos.length
-    ? [...autoFeedbackVideos]
-    : (Array.isArray(success.videos) ? success.videos : fallback.success.videos);
-  const sharedImages = Array.isArray(success.images) ? success.images : fallback.success.images;
+  const sharedVideos = combineVideoLists(success.videos, fail.videos, autoFeedbackVideos);
 
   return {
     success: {
       videos: sharedVideos,
-      images: sharedImages,
+      images: [],
       sounds: Array.isArray(success.sounds) ? success.sounds : fallback.success.sounds
     },
     fail: {
       videos: sharedVideos,
-      images: sharedImages,
+      images: [],
       sounds: Array.isArray(fail.sounds) ? fail.sounds : fallback.fail.sounds
     }
   };
+}
+
+function combineVideoLists(...lists) {
+  return lists
+    .flatMap((list) => Array.isArray(list) ? list : [])
+    .map((path) => String(path || "").trim())
+    .filter((path) => path && isVideoPath(path))
+    .filter((path, idx, arr) => arr.indexOf(path) === idx);
 }
 
 async function hydrateAutoFeedbackVideos() {
