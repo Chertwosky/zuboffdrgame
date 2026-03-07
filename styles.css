@@ -326,9 +326,6 @@ kbd {
 .task-card img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 10px; margin-top: .45rem; }
 .task-actions { margin-top: .9rem; display: flex; gap: .5rem; }
 
-.fx-layer { pointer-events: none; position: fixed; inset: 0; overflow: hidden; }
-.fx-particle { position: absolute; top: -8%; font-size: 1.6rem; animation: fall 1.8s ease-in forwards; }
-@keyframes fall { from { transform: translateX(0) translateY(0); opacity: 1; } to { transform: translateX(var(--drift)) translateY(115vh); opacity: 0; } }
 
 .feedback-overlay {
   position: fixed;

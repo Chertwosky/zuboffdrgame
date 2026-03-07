@@ -27,14 +27,10 @@ const EXCHANGE_RULES = {
 
 const FEEDBACK_MEDIA = {
   success: {
-    videos: [],
-    images: [],
-    sounds: ["media/sounds/success/success-1.mp3", "media/sounds/success/success-2.mp3", "media/sounds/success/success-3.mp3"]
+    videos: []
   },
   fail: {
-    videos: [],
-    images: [],
-    sounds: ["media/sounds/fail/fail-1.mp3", "media/sounds/fail/fail-2.mp3", "media/sounds/fail/fail-3.mp3"]
+    videos: []
   }
 };
 
@@ -46,9 +42,6 @@ const GAMEPLAY_SOUNDS = {
   pawnStep: "media/sounds/gameplay/pawn-step.mp3",
   thinkingLoop: "media/sounds/gameplay/thinking-loop.mp3"
 };
-
-const SUCCESS_EMOJI_BURST = ["🎉", "🎊", "✨", "🥳", "🎇", "🎆", "🌟", "💫", "🪩", "🎈", "💖", "🍾", "🙌", "💐"];
-const FAIL_EMOJI_BURST = ["💩", "☠️", "💀", "🤢", "👎", "😵", "🫠", "😬", "🪦"];
 
 const defaults = {
   players: [{ id: crypto.randomUUID(), name: "Игрок 1", cards: { purple: 0, red: 0, blue: 0, green: 0 } }],
@@ -98,7 +91,6 @@ const state = loadState();
 const ui = {
   board: document.getElementById("board"),
   categoryLegend: document.getElementById("categoryLegend"),
-  fxLayer: document.getElementById("fxLayer"),
   scoreValue: document.getElementById("scoreValue"),
   turnValue: document.getElementById("turnValue"),
   currentPlayerValue: document.getElementById("currentPlayerValue"),
@@ -152,17 +144,11 @@ const ui = {
   categoriesEditor: document.getElementById("categoriesEditor"),
   mediaSettingsForm: document.getElementById("mediaSettingsForm"),
   successVideosInput: document.getElementById("successVideosInput"),
-  successSoundsInput: document.getElementById("successSoundsInput"),
   failVideosInput: document.getElementById("failVideosInput"),
-  failSoundsInput: document.getElementById("failSoundsInput"),
   successVideosUpload: document.getElementById("successVideosUpload"),
-  successSoundsUpload: document.getElementById("successSoundsUpload"),
   failVideosUpload: document.getElementById("failVideosUpload"),
-  failSoundsUpload: document.getElementById("failSoundsUpload"),
   addSuccessVideosBtn: document.getElementById("addSuccessVideosBtn"),
-  addSuccessSoundsBtn: document.getElementById("addSuccessSoundsBtn"),
   addFailVideosBtn: document.getElementById("addFailVideosBtn"),
-  addFailSoundsBtn: document.getElementById("addFailSoundsBtn"),
   diceRollLoopInput: document.getElementById("diceRollLoopInput"),
   pawnStepInput: document.getElementById("pawnStepInput"),
   thinkingLoopInput: document.getElementById("thinkingLoopInput"),
@@ -192,8 +178,6 @@ const ui = {
 let currentTask = null;
 let currentPenalty = "";
 let draggingCellId = null;
-let feedbackSound = null;
-let feedbackVideoSound = null;
 let feedbackCloseTimer = null;
 let diceRollLoopSound = null;
 let thinkingLoopSound = null;
@@ -373,14 +357,10 @@ function wireEvents() {
     );
     state.feedbackMedia = {
       success: {
-        videos: sharedVideos,
-        images: [],
-        sounds: parseLines(ui.successSoundsInput.value)
+        videos: sharedVideos
       },
       fail: {
-        videos: sharedVideos,
-        images: [],
-        sounds: parseLines(ui.failSoundsInput.value)
+        videos: sharedVideos
       }
     };
     state.gameplaySounds = {
@@ -392,9 +372,7 @@ function wireEvents() {
   });
 
   ui.addSuccessVideosBtn.addEventListener("click", () => appendUploadedFiles(ui.successVideosUpload, ui.successVideosInput));
-  ui.addSuccessSoundsBtn.addEventListener("click", () => appendUploadedFiles(ui.successSoundsUpload, ui.successSoundsInput));
   ui.addFailVideosBtn.addEventListener("click", () => appendUploadedFiles(ui.failVideosUpload, ui.failVideosInput));
-  ui.addFailSoundsBtn.addEventListener("click", () => appendUploadedFiles(ui.failSoundsUpload, ui.failSoundsInput));
 
   ui.newGameBtn.addEventListener("click", () => {
     state.turn = 0;
@@ -494,13 +472,11 @@ function completeTask(success) {
     state.stats.success += 1;
     state.stats.streak += 1;
     state.stats.bestStreak = Math.max(state.stats.bestStreak, state.stats.streak);
-    showConfetti();
   } else {
     state.stats.fail += 1;
     state.stats.streak = 0;
     ui.taskHint.textContent = `Не выполнено. Штраф: ${currentPenalty}`;
     pushHistory(`❌ «${currentTask.title}» не выполнено. Штраф: ${currentPenalty}`);
-    showPoopFx();
   }
 
   state.awaitingTaskDecision = false;
@@ -526,23 +502,14 @@ function showFeedbackOverlay(success) {
   ui.feedbackTitle.textContent = success ? "Успех!" : "Промах";
   ui.feedbackText.textContent = text;
 
-  const visualMode = presentFeedbackVisual(mediaSet, success);
-  if (visualMode === "video") {
-    if (feedbackSound) {
-      feedbackSound.pause();
-      feedbackSound = null;
-    }
-  } else {
-    playFeedbackSound(mediaSet.sounds, success);
-  }
+  presentFeedbackVisual(mediaSet);
 
   if (feedbackCloseTimer) clearTimeout(feedbackCloseTimer);
   feedbackCloseTimer = setTimeout(closeFeedbackOverlay, 12000);
 }
 
-function presentFeedbackVisual(mediaSet, success) {
+function presentFeedbackVisual(mediaSet) {
   const videoSrc = pickRandom(mediaSet.videos);
-  stopFeedbackVideoSound();
   ui.feedbackVideo.pause();
   ui.feedbackVideo.hidden = true;
   ui.feedbackVideo.removeAttribute("src");
@@ -554,53 +521,13 @@ function presentFeedbackVisual(mediaSet, success) {
     ui.feedbackVideo.muted = true;
     ui.feedbackVideo.currentTime = 0;
     ui.feedbackVideo.hidden = false;
-    ui.feedbackVideo.play().then(() => {
-      startFeedbackVideoOneShotSound(videoSrc);
-    }).catch(() => {
+    ui.feedbackVideo.play().catch(() => {
       ui.feedbackVideo.hidden = true;
-      playFeedbackSound(mediaSet.sounds, success);
     });
     return "video";
   }
 
   return "none";
-}
-
-async function startFeedbackVideoOneShotSound(videoSrc) {
-  if (!state.soundEnabled || !videoSrc) return;
-  stopFeedbackVideoSound();
-  feedbackVideoSound = new Audio(videoSrc);
-  feedbackVideoSound.volume = 0.55;
-  try {
-    await feedbackVideoSound.play();
-  } catch {
-    feedbackVideoSound = null;
-  }
-}
-
-function stopFeedbackVideoSound() {
-  if (!feedbackVideoSound) return;
-  feedbackVideoSound.pause();
-  feedbackVideoSound.currentTime = 0;
-  feedbackVideoSound = null;
-}
-
-function playFeedbackSound(soundList, isGood) {
-  if (!state.soundEnabled) return;
-  if (feedbackSound) {
-    feedbackSound.pause();
-    feedbackSound = null;
-  }
-
-  const selected = pickRandom(soundList);
-  if (!selected) {
-    toneFallback(isGood);
-    return;
-  }
-
-  feedbackSound = new Audio(selected);
-  feedbackSound.volume = 0.55;
-  feedbackSound.play().catch(() => toneFallback(isGood));
 }
 
 function closeFeedbackOverlay() {
@@ -613,11 +540,6 @@ function closeFeedbackOverlay() {
   ui.feedbackVideo.pause();
   ui.feedbackVideo.hidden = true;
   ui.feedbackVideo.removeAttribute("src");
-  if (feedbackSound) {
-    feedbackSound.pause();
-    feedbackSound = null;
-  }
-  stopFeedbackVideoSound();
 }
 
 function checkWin() {
@@ -939,39 +861,6 @@ function stopThinkingLoopSound() {
   thinkingLoopSound.currentTime = 0;
 }
 
-function showConfetti() {
-  burstFx(SUCCESS_EMOJI_BURST, 90);
-}
-
-function showPoopFx() {
-  burstFx(FAIL_EMOJI_BURST, 42);
-}
-
-function burstFx(symbols, count = 24) {
-  for (let i = 0; i < count; i += 1) {
-    const particle = document.createElement("span");
-    particle.className = "fx-particle";
-    particle.textContent = symbols[Math.floor(Math.random() * symbols.length)];
-    particle.style.left = `${Math.random() * 100}%`;
-    particle.style.animationDelay = `${Math.random() * 0.3}s`;
-    particle.style.setProperty("--drift", `${-30 + Math.random() * 60}px`);
-    ui.fxLayer.appendChild(particle);
-    setTimeout(() => particle.remove(), 1800);
-  }
-}
-
-function toneFallback(isGood) {
-  const context = new AudioContext();
-  const osc = context.createOscillator();
-  const gain = context.createGain();
-  osc.type = isGood ? "triangle" : "sawtooth";
-  osc.frequency.value = isGood ? 660 : 180;
-  osc.connect(gain);
-  gain.connect(context.destination);
-  gain.gain.value = 0.02;
-  osc.start();
-  osc.stop(context.currentTime + 0.25);
-}
 
 function reorderCells(fromId, toId) {
   if (!fromId || !toId || fromId === toId) return;
@@ -1028,14 +917,9 @@ function applyTheme() {
 
 function toggleSound() {
   state.soundEnabled = !state.soundEnabled;
-  if (!state.soundEnabled && feedbackSound) {
-    feedbackSound.pause();
-    feedbackSound = null;
-  }
   if (!state.soundEnabled) {
     stopDiceRollLoopSound();
     stopThinkingLoopSound();
-    stopFeedbackVideoSound();
   } else if (state.awaitingTaskDecision) {
     startThinkingLoopSound();
   }
@@ -1192,12 +1076,10 @@ function renderMediaSettings() {
   ui.successVideosInput.readOnly = false;
   ui.successVideosUpload.disabled = false;
   ui.addSuccessVideosBtn.disabled = false;
-  ui.successSoundsInput.value = (fm.success?.sounds || []).join("\n");
   ui.failVideosInput.value = (fm.fail?.videos || []).join("\n");
   ui.failVideosInput.readOnly = false;
   ui.failVideosUpload.disabled = false;
   ui.addFailVideosBtn.disabled = false;
-  ui.failSoundsInput.value = (fm.fail?.sounds || []).join("\n");
 
   ui.diceRollLoopInput.value = state.gameplaySounds?.diceRollLoop || "";
   ui.pawnStepInput.value = state.gameplaySounds?.pawnStep || "";
@@ -1222,14 +1104,10 @@ function getNormalizedFeedbackMedia(feedbackMedia = FEEDBACK_MEDIA) {
 
   return {
     success: {
-      videos: sharedVideos,
-      images: [],
-      sounds: Array.isArray(success.sounds) ? success.sounds : fallback.success.sounds
+      videos: sharedVideos
     },
     fail: {
-      videos: sharedVideos,
-      images: [],
-      sounds: Array.isArray(fail.sounds) ? fail.sounds : fallback.fail.sounds
+      videos: sharedVideos
     }
   };
 }
