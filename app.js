@@ -42,8 +42,8 @@ const FEEDBACK_MEDIA = {
   }
 };
 
-const SUCCESS_EMOJI_BURST = ["🎉", "🎊", "✨", "🥳", "🎇", "🎆", "🌟", "💫", "🪩", "🎈", "💖", "🍾", "🙌", "💐"];
-const FAIL_EMOJI_BURST = ["💩", "☠️", "💀", "🤢", "👎", "😵", "🫠", "😬", "🪦"];
+const SUCCESS_EMOJI_BURST = ["🎉", "🎊", "✨", "🥳", "🎇", "🎆", "🌟", "💫", "🪩", "🎈", "💖", "🍾", "🙌", "💐", "🦄", "🏆", "🚀", "🌈", "😻", "💎", "🔥", "🎯"];
+const FAIL_EMOJI_BURST = ["💩", "☠️", "💀", "🤢", "👎", "😵", "🫠", "😬", "🪦", "🌧️", "🙈", "🥴", "😿", "🫥"];
 
 const defaults = {
   players: [{ id: crypto.randomUUID(), name: "Игрок 1", cards: { purple: 0, red: 0, blue: 0, green: 0 } }],
@@ -104,6 +104,7 @@ const ui = {
   clearHistoryBtn: document.getElementById("clearHistoryBtn"),
   diceResult: document.getElementById("diceResult"),
   rollDiceBtn: document.getElementById("rollDiceBtn"),
+  diceVisual: document.getElementById("diceVisual"),
   taskHint: document.getElementById("taskHint"),
   taskTitle: document.getElementById("taskTitle"),
   taskDescription: document.getElementById("taskDescription"),
@@ -185,7 +186,7 @@ function wireEvents() {
   ui.adminToggle.addEventListener("click", () => {
     const hidden = ui.adminPanel.hasAttribute("hidden");
     ui.adminPanel.toggleAttribute("hidden");
-    ui.adminToggle.textContent = hidden ? "Скрыть админ-панель" : "Показать админ-панель";
+    ui.adminToggle.textContent = hidden ? "🧰 Скрыть админ-панель" : "⚙️ Показать админ-панель";
   });
 
   ui.playerForm.addEventListener("submit", (event) => {
@@ -492,6 +493,7 @@ function renderAll() {
   ui.pawnShapeSelect.value = state.pawn?.shape || "circle";
   ui.soundToggleBtn.textContent = state.soundEnabled ? "🔊 Звук включён" : "🔇 Звук выключен";
   ui.themeToggleBtn.textContent = state.theme === "light" ? "🌙 Тёмная тема" : "☀️ Светлая тема";
+  ui.adminToggle.textContent = ui.adminPanel.hasAttribute("hidden") ? "⚙️ Показать админ-панель" : "🧰 Скрыть админ-панель";
 }
 
 function renderColorOptions() {
@@ -686,15 +688,22 @@ function getPlayerProgressPercent(cards) {
 }
 
 async function animateDiceRoll(finalValue) {
+  const diceFaces = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
   ui.rollDiceBtn.disabled = true;
   ui.rollDiceBtn.classList.add("rolling");
-  for (let i = 0; i < 8; i += 1) {
+  ui.diceVisual.classList.add("rolling");
+
+  for (let i = 0; i < 10; i += 1) {
     const fake = 1 + Math.floor(Math.random() * 6);
-    ui.diceResult.textContent = `Кубик крутится... ${fake}`;
+    ui.diceVisual.textContent = diceFaces[fake - 1] || "🎲";
+    ui.diceResult.textContent = `🎲 Кубик крутится... ${fake}`;
     await wait(90);
   }
-  ui.diceResult.textContent = `Кубик остановился: ${finalValue}`;
+
+  ui.diceVisual.textContent = diceFaces[finalValue - 1] || "🎲";
+  ui.diceResult.textContent = `🎲 Кубик остановился: ${finalValue}`;
   ui.rollDiceBtn.classList.remove("rolling");
+  ui.diceVisual.classList.remove("rolling");
   ui.rollDiceBtn.disabled = false;
 }
 
@@ -707,11 +716,11 @@ async function animatePawnRoute(route) {
 }
 
 function showConfetti() {
-  burstFx(SUCCESS_EMOJI_BURST, 90);
+  burstFx(SUCCESS_EMOJI_BURST, 140);
 }
 
 function showPoopFx() {
-  burstFx(FAIL_EMOJI_BURST, 42);
+  burstFx(FAIL_EMOJI_BURST, 72);
 }
 
 function burstFx(symbols, count = 24) {
