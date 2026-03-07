@@ -36,6 +36,12 @@ const FEEDBACK_MEDIA = {
   }
 };
 
+const GAMEPLAY_SOUNDS = {
+  diceRollLoop: "media/sounds/gameplay/dice-roll-loop.mp3",
+  pawnStep: "media/sounds/gameplay/pawn-step.mp3",
+  thinkingLoop: "media/sounds/gameplay/thinking-loop.mp3"
+};
+
 const SUCCESS_EMOJI_BURST = ["🎉", "🎊", "✨", "🥳", "🎇", "🎆", "🌟", "💫", "🪩", "🎈", "💖", "🍾", "🙌", "💐"];
 const FAIL_EMOJI_BURST = ["💩", "☠️", "💀", "🤢", "👎", "😵", "🫠", "😬", "🪦"];
 
@@ -153,6 +159,8 @@ let currentTask = null;
 let draggingCellId = null;
 let feedbackSound = null;
 let feedbackCloseTimer = null;
+let diceRollLoopSound = null;
+let thinkingLoopSound = null;
 
 renderAll();
 wireEvents();
@@ -262,6 +270,7 @@ function wireEvents() {
     state.stats = structuredClone(defaults.stats);
     state.history = [];
     state.awaitingTaskDecision = false;
+    stopThinkingLoopSound();
     currentTask = null;
     state.pawnIndex = getStartIndex();
     ui.gameWinDialog.close();
@@ -274,6 +283,7 @@ function wireEvents() {
     const shouldReset = window.confirm("Сбросить игру и конструктор до стандартных значений?");
     if (!shouldReset) return;
     Object.assign(state, structuredClone(defaults));
+    stopThinkingLoopSound();
     state.pawnIndex = getStartIndex();
     currentTask = null;
     saveAndRender();
@@ -307,6 +317,7 @@ async function onRollDice() {
   currentTask = pickRandomTaskByColor(cell.color);
 
   if (!currentTask) {
+    stopThinkingLoopSound();
     const fallbackColor = pickReplacementColor(cell.color);
     if (fallbackColor) {
       reassignCategoryColor(cell.category, fallbackColor);
@@ -328,6 +339,7 @@ async function onRollDice() {
     ui.taskDescription.textContent = currentTask.description;
     ui.taskActions.hidden = false;
     state.awaitingTaskDecision = true;
+    startThinkingLoopSound();
   }
 
   applyTaskMedia(currentTask);
@@ -338,6 +350,7 @@ async function onRollDice() {
 
 function completeTask(success) {
   if (!currentTask || !state.awaitingTaskDecision) return;
+  stopThinkingLoopSound();
 
   state.stats.completed += 1;
 
@@ -664,6 +677,7 @@ function getPlayerProgressPercent(cards) {
 }
 
 async function animateDiceRoll(finalValue) {
+  startDiceRollLoopSound();
   ui.rollDiceBtn.disabled = true;
   ui.rollDiceBtn.classList.add("rolling");
   for (let i = 0; i < 8; i += 1) {
@@ -674,14 +688,65 @@ async function animateDiceRoll(finalValue) {
   ui.diceResult.textContent = `Кубик остановился: ${finalValue}`;
   ui.rollDiceBtn.classList.remove("rolling");
   ui.rollDiceBtn.disabled = false;
+  stopDiceRollLoopSound();
 }
 
 async function animatePawnRoute(route) {
   for (const nextIndex of route) {
+    playSoundEffect(GAMEPLAY_SOUNDS.pawnStep, 0.35);
     state.pawnIndex = nextIndex;
     renderBoard();
     await wait(240);
   }
+}
+
+function startDiceRollLoopSound() {
+  if (!state.soundEnabled || !GAMEPLAY_SOUNDS.diceRollLoop) return;
+  if (!diceRollLoopSound) {
+    diceRollLoopSound = new Audio(GAMEPLAY_SOUNDS.diceRollLoop);
+    diceRollLoopSound.loop = true;
+    diceRollLoopSound.volume = 0.35;
+  }
+
+  diceRollLoopSound.currentTime = 0;
+  diceRollLoopSound.play().catch(() => {
+    diceRollLoopSound = null;
+  });
+}
+
+function stopDiceRollLoopSound() {
+  if (!diceRollLoopSound) return;
+  diceRollLoopSound.pause();
+  diceRollLoopSound.currentTime = 0;
+}
+
+function playSoundEffect(src, volume = 0.4) {
+  if (!state.soundEnabled || !src) return;
+  const sound = new Audio(src);
+  sound.volume = volume;
+  sound.play().catch(() => {
+    sound.remove();
+  });
+}
+
+function startThinkingLoopSound() {
+  if (!state.soundEnabled || !GAMEPLAY_SOUNDS.thinkingLoop) return;
+  if (!thinkingLoopSound) {
+    thinkingLoopSound = new Audio(GAMEPLAY_SOUNDS.thinkingLoop);
+    thinkingLoopSound.loop = true;
+    thinkingLoopSound.volume = 0.28;
+  }
+
+  thinkingLoopSound.currentTime = 0;
+  thinkingLoopSound.play().catch(() => {
+    thinkingLoopSound = null;
+  });
+}
+
+function stopThinkingLoopSound() {
+  if (!thinkingLoopSound) return;
+  thinkingLoopSound.pause();
+  thinkingLoopSound.currentTime = 0;
 }
 
 function showConfetti() {
@@ -777,6 +842,12 @@ function toggleSound() {
     feedbackSound.pause();
     feedbackSound = null;
   }
+  if (!state.soundEnabled) {
+    stopDiceRollLoopSound();
+    stopThinkingLoopSound();
+  } else if (state.awaitingTaskDecision) {
+    startThinkingLoopSound();
+  }
   saveAndRender();
 }
 
@@ -814,6 +885,8 @@ async function importStateFile(event) {
     const parsed = JSON.parse(raw);
     const next = sanitizeState(parsed);
     Object.assign(state, next);
+    stopThinkingLoopSound();
+    if (state.awaitingTaskDecision) startThinkingLoopSound();
     currentTask = null;
     saveAndRender();
   } catch {
