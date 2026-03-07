@@ -350,11 +350,7 @@ function wireEvents() {
 
   ui.mediaSettingsForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    const sharedVideos = combineVideoLists(
-      parseLines(ui.successVideosInput.value),
-      parseLines(ui.failVideosInput.value),
-      autoFeedbackVideos
-    );
+    const sharedVideos = combineVideoLists(autoFeedbackVideos);
     state.feedbackMedia = {
       success: {
         videos: sharedVideos
@@ -491,16 +487,13 @@ function completeTask(success) {
 function showFeedbackOverlay(success) {
   const mode = success ? "success" : "fail";
   const mediaSet = getNormalizedFeedbackMedia(state.feedbackMedia)?.[mode] || FEEDBACK_MEDIA[mode];
-  const text = success
-    ? "Классно! Так держать!"
-    : `Не страшно. Следующее задание точно получится. ${currentPenalty || ""}`;
 
   ui.feedbackOverlay.hidden = false;
   ui.feedbackClose.onclick = closeFeedbackOverlay;
   ui.feedbackOverlay.classList.toggle("success", success);
   ui.feedbackOverlay.classList.toggle("fail", !success);
-  ui.feedbackTitle.textContent = success ? "Успех!" : "Промах";
-  ui.feedbackText.textContent = text;
+  ui.feedbackTitle.textContent = "";
+  ui.feedbackText.textContent = "";
 
   presentFeedbackVisual(mediaSet);
 
@@ -517,8 +510,8 @@ function presentFeedbackVisual(mediaSet) {
   if (videoSrc) {
     ui.feedbackVideo.src = videoSrc;
     ui.feedbackVideo.loop = true;
-    ui.feedbackVideo.volume = 0;
-    ui.feedbackVideo.muted = true;
+    ui.feedbackVideo.volume = 1;
+    ui.feedbackVideo.muted = false;
     ui.feedbackVideo.currentTime = 0;
     ui.feedbackVideo.hidden = false;
     ui.feedbackVideo.play().catch(() => {
@@ -1073,13 +1066,13 @@ function renderCategoriesEditor() {
 function renderMediaSettings() {
   const fm = getNormalizedFeedbackMedia(state.feedbackMedia);
   ui.successVideosInput.value = (fm.success?.videos || []).join("\n");
-  ui.successVideosInput.readOnly = false;
-  ui.successVideosUpload.disabled = false;
-  ui.addSuccessVideosBtn.disabled = false;
+  ui.successVideosInput.readOnly = true;
+  ui.successVideosUpload.disabled = true;
+  ui.addSuccessVideosBtn.disabled = true;
   ui.failVideosInput.value = (fm.fail?.videos || []).join("\n");
-  ui.failVideosInput.readOnly = false;
-  ui.failVideosUpload.disabled = false;
-  ui.addFailVideosBtn.disabled = false;
+  ui.failVideosInput.readOnly = true;
+  ui.failVideosUpload.disabled = true;
+  ui.addFailVideosBtn.disabled = true;
 
   ui.diceRollLoopInput.value = state.gameplaySounds?.diceRollLoop || "";
   ui.pawnStepInput.value = state.gameplaySounds?.pawnStep || "";
@@ -1091,16 +1084,7 @@ function parseLines(text) {
 }
 
 function getNormalizedFeedbackMedia(feedbackMedia = FEEDBACK_MEDIA) {
-  const fallback = structuredClone(FEEDBACK_MEDIA);
-  const success = {
-    ...fallback.success,
-    ...(feedbackMedia?.success || {})
-  };
-  const fail = {
-    ...fallback.fail,
-    ...(feedbackMedia?.fail || {})
-  };
-  const sharedVideos = combineVideoLists(success.videos, fail.videos, autoFeedbackVideos);
+  const sharedVideos = combineVideoLists(autoFeedbackVideos);
 
   return {
     success: {
@@ -1115,8 +1099,8 @@ function getNormalizedFeedbackMedia(feedbackMedia = FEEDBACK_MEDIA) {
 function combineVideoLists(...lists) {
   return lists
     .flatMap((list) => Array.isArray(list) ? list : [])
-    .map((path) => String(path || "").trim())
-    .filter((path) => path && isVideoPath(path))
+    .map((path) => normalizeMediaRootVideoPath(path))
+    .filter(Boolean)
     .filter((path, idx, arr) => arr.indexOf(path) === idx);
 }
 
@@ -1141,13 +1125,25 @@ async function discoverMediaFolderVideos() {
 
     return links
       .map((link) => decodeURIComponent(link.getAttribute("href") || "").trim())
-      .filter((href) => href && !href.endsWith("/") && isVideoPath(href))
-      .map((href) => href.replace(/^\.\//, ""))
-      .map((href) => href.startsWith("media/") ? href : `${MEDIA_VIDEO_FOLDER}${href}`)
+      .map((href) => normalizeMediaRootVideoPath(href))
+      .filter(Boolean)
       .filter((path, idx, arr) => arr.indexOf(path) === idx);
   } catch {
     return [];
   }
+}
+
+function normalizeMediaRootVideoPath(path) {
+  const raw = String(path || "").trim().replace(/^\.\//, "");
+  if (!raw || raw.endsWith("/")) return "";
+
+  const withPrefix = raw.startsWith(MEDIA_VIDEO_FOLDER) ? raw : `${MEDIA_VIDEO_FOLDER}${raw}`;
+  if (!withPrefix.startsWith(MEDIA_VIDEO_FOLDER)) return "";
+
+  const relative = withPrefix.slice(MEDIA_VIDEO_FOLDER.length);
+  if (!relative || relative.includes("/") || !isVideoPath(relative)) return "";
+
+  return `${MEDIA_VIDEO_FOLDER}${relative}`;
 }
 
 function isVideoPath(path) {
