@@ -27,16 +27,19 @@ const EXCHANGE_RULES = {
 
 const FEEDBACK_MEDIA = {
   success: {
-    videos: ["media/video/success/success-1.mp4", "media/video/success/success-2.mp4"],
+    videos: [],
     images: ["media/images/success/success-1.jpg", "media/images/success/success-2.jpg"],
     sounds: ["media/sounds/success/success-1.mp3", "media/sounds/success/success-2.mp3", "media/sounds/success/success-3.mp3"]
   },
   fail: {
-    videos: ["media/video/success/success-1.mp4", "media/video/success/success-2.mp4"],
+    videos: [],
     images: ["media/images/success/success-1.jpg", "media/images/success/success-2.jpg"],
     sounds: ["media/sounds/fail/fail-1.mp3", "media/sounds/fail/fail-2.mp3", "media/sounds/fail/fail-3.mp3"]
   }
 };
+
+const MEDIA_VIDEO_FOLDER = "media/";
+const VIDEO_EXTENSIONS = [".mp4", ".webm", ".ogg", ".mov", ".m4v"];
 
 const GAMEPLAY_SOUNDS = {
   diceRollLoop: "media/sounds/gameplay/dice-roll-loop.mp3",
@@ -194,9 +197,11 @@ let feedbackVideoSound = null;
 let feedbackCloseTimer = null;
 let diceRollLoopSound = null;
 let thinkingLoopSound = null;
+let autoFeedbackVideos = [];
 
 renderAll();
 wireEvents();
+hydrateAutoFeedbackVideos();
 
 function wireEvents() {
   ui.rollDiceBtn.addEventListener("click", onRollDice);
@@ -323,16 +328,15 @@ function wireEvents() {
 
   ui.mediaSettingsForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    const sharedVideos = parseLines(ui.successVideosInput.value);
     const sharedImages = parseLines(ui.successImagesInput.value);
     state.feedbackMedia = {
       success: {
-        videos: sharedVideos,
+        videos: [...autoFeedbackVideos],
         images: sharedImages,
         sounds: parseLines(ui.successSoundsInput.value)
       },
       fail: {
-        videos: sharedVideos,
+        videos: [...autoFeedbackVideos],
         images: sharedImages,
         sounds: parseLines(ui.failSoundsInput.value)
       }
@@ -1117,9 +1121,15 @@ function renderCategoriesEditor() {
 function renderMediaSettings() {
   const fm = getNormalizedFeedbackMedia(state.feedbackMedia);
   ui.successVideosInput.value = (fm.success?.videos || []).join("\n");
+  ui.successVideosInput.readOnly = true;
+  ui.successVideosUpload.disabled = true;
+  ui.addSuccessVideosBtn.disabled = true;
   ui.successImagesInput.value = (fm.success?.images || []).join("\n");
   ui.successSoundsInput.value = (fm.success?.sounds || []).join("\n");
   ui.failVideosInput.value = (fm.fail?.videos || []).join("\n");
+  ui.failVideosInput.readOnly = true;
+  ui.failVideosUpload.disabled = true;
+  ui.addFailVideosBtn.disabled = true;
   ui.failImagesInput.value = (fm.fail?.images || []).join("\n");
   ui.failSoundsInput.value = (fm.fail?.sounds || []).join("\n");
 
@@ -1142,7 +1152,9 @@ function getNormalizedFeedbackMedia(feedbackMedia = FEEDBACK_MEDIA) {
     ...fallback.fail,
     ...(feedbackMedia?.fail || {})
   };
-  const sharedVideos = Array.isArray(success.videos) ? success.videos : fallback.success.videos;
+  const sharedVideos = autoFeedbackVideos.length
+    ? [...autoFeedbackVideos]
+    : (Array.isArray(success.videos) ? success.videos : fallback.success.videos);
   const sharedImages = Array.isArray(success.images) ? success.images : fallback.success.images;
 
   return {
@@ -1157,6 +1169,41 @@ function getNormalizedFeedbackMedia(feedbackMedia = FEEDBACK_MEDIA) {
       sounds: Array.isArray(fail.sounds) ? fail.sounds : fallback.fail.sounds
     }
   };
+}
+
+async function hydrateAutoFeedbackVideos() {
+  const discoveredVideos = await discoverMediaFolderVideos();
+  if (!discoveredVideos.length) return;
+  autoFeedbackVideos = discoveredVideos;
+  const normalized = getNormalizedFeedbackMedia(state.feedbackMedia);
+  state.feedbackMedia.success.videos = [...normalized.success.videos];
+  state.feedbackMedia.fail.videos = [...normalized.fail.videos];
+  saveAndRender();
+}
+
+async function discoverMediaFolderVideos() {
+  try {
+    const response = await fetch(MEDIA_VIDEO_FOLDER, { cache: "no-store" });
+    if (!response.ok) return [];
+    const html = await response.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const links = Array.from(doc.querySelectorAll("a[href]"));
+
+    return links
+      .map((link) => decodeURIComponent(link.getAttribute("href") || "").trim())
+      .filter((href) => href && !href.endsWith("/") && isVideoPath(href))
+      .map((href) => href.replace(/^\.\//, ""))
+      .map((href) => href.startsWith("media/") ? href : `${MEDIA_VIDEO_FOLDER}${href}`)
+      .filter((path, idx, arr) => arr.indexOf(path) === idx);
+  } catch {
+    return [];
+  }
+}
+
+function isVideoPath(path) {
+  const normalized = String(path || "").toLowerCase();
+  return VIDEO_EXTENSIONS.some((ext) => normalized.endsWith(ext));
 }
 
 function normalizeColor(color) {
