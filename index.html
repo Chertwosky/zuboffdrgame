@@ -187,9 +187,9 @@
 
         <form id="mediaSettingsForm" class="admin-block">
           <h3>Медиа и звуки (полное редактирование)</h3>
-          <p class="subtle">По одному URL/Data URI на строку. Можно вставлять ссылки или загружать файлы прямо здесь.</p>
+          <p class="subtle">По одному URL/Data URI на строку. Видео для успеха и провала подхватываются автоматически из папки <code>media/</code> (вручную их задавать не нужно).</p>
 
-          <label>Успех: видео
+          <label>Успех: видео (авто из <code>media/</code>)
             <textarea id="successVideosInput" rows="3" placeholder="https://..."></textarea>
           </label>
           <div class="upload-row">
@@ -211,7 +211,7 @@
             <button class="button ghost" id="addSuccessSoundsBtn" type="button">Добавить загруженные звуки</button>
           </div>
 
-          <label>Провал: видео
+          <label>Провал: видео (авто из <code>media/</code>)
             <textarea id="failVideosInput" rows="3" placeholder="https://..."></textarea>
           </label>
           <div class="upload-row">
