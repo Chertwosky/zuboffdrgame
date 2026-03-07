@@ -22,12 +22,6 @@ const EXCHANGE_RULES = {
   blueToGreen: { from: "blue", to: "green", fromAmount: 1, toAmount: 2, label: "1 синяя → 2 зелёные" }
 };
 
-const COLOR_PRESETS = [
-  { value: "#c792ea", label: "Сиреневый" },
-  { value: "#f06292", label: "Розовый" },
-  { value: "#5dd39e", label: "Зелёный" },
-  { value: "#64b5f6", label: "Голубой" }
-];
 
 const FEEDBACK_MEDIA = {
   success: {
@@ -239,6 +233,7 @@ function wireEvents() {
     if (ui.cellStartInput.checked) state.pawnIndex = state.cells.length - 1;
     ui.cellForm.reset();
     ui.cellCategoryInput.value = "1";
+    ui.cellColorInput.value = "#c792ea";
     saveAndRender();
   });
 
@@ -256,6 +251,7 @@ function wireEvents() {
     });
 
     ui.taskForm.reset();
+    ui.taskColorSelect.value = "#c792ea";
     saveAndRender();
   });
 
@@ -308,8 +304,7 @@ async function onRollDice() {
   ui.diceResult.textContent = `Выпало ${dice}. ${player?.name || "Игрок"} на ячейке «${cell.name}».`;
   pushHistory(`🎲 Ход ${state.turn} (${player?.name || "Игрок"}): выпало ${dice}, переход на «${cell.name}».`);
 
-  const colorTasks = state.tasks.filter((task) => normalizeColor(task.color) === normalizeColor(cell.color));
-  currentTask = pickRandom(colorTasks) || null;
+  currentTask = pickRandomTaskByColor(cell.color);
 
   if (!currentTask) {
     const fallbackColor = pickReplacementColor(cell.color);
@@ -478,7 +473,6 @@ function checkWin() {
 function renderAll() {
   ensureStartCell();
   applyTheme();
-  renderColorOptions();
   renderStats();
   renderBoard();
   renderLegend();
@@ -492,16 +486,6 @@ function renderAll() {
   ui.pawnShapeSelect.value = state.pawn?.shape || "circle";
   ui.soundToggleBtn.textContent = state.soundEnabled ? "🔊 Звук включён" : "🔇 Звук выключен";
   ui.themeToggleBtn.textContent = state.theme === "light" ? "🌙 Тёмная тема" : "☀️ Светлая тема";
-}
-
-function renderColorOptions() {
-  ui.cellColorInput.innerHTML = "";
-  COLOR_PRESETS.forEach((color) => {
-    const option = document.createElement("option");
-    option.value = color.value;
-    option.textContent = `${color.label} (${color.value})`;
-    ui.cellColorInput.appendChild(option);
-  });
 }
 
 function renderStats() {
@@ -576,16 +560,10 @@ function renderLegend() {
 }
 
 function renderTaskColorSelect() {
-  ui.taskColorSelect.innerHTML = "";
   const uniqueColors = [...new Set(state.cells.map((cell) => normalizeColor(cell.color)))];
-
-  uniqueColors.forEach((color) => {
-    const option = document.createElement("option");
-    option.value = color;
-    const preset = COLOR_PRESETS.find((entry) => entry.value === color);
-    option.textContent = preset ? `${preset.label} (${color})` : color;
-    ui.taskColorSelect.appendChild(option);
-  });
+  if (!ui.taskColorSelect.value && uniqueColors.length) {
+    ui.taskColorSelect.value = uniqueColors[0];
+  }
 }
 
 function renderAdminLists() {
@@ -864,6 +842,12 @@ function getStartIndex() {
 function pickRandom(list) {
   if (!Array.isArray(list) || !list.length) return "";
   return list[Math.floor(Math.random() * list.length)];
+}
+
+function pickRandomTaskByColor(color) {
+  const normalizedColor = normalizeColor(color);
+  const colorTasks = state.tasks.filter((task) => normalizeColor(task.color) === normalizedColor);
+  return pickRandom(colorTasks) || null;
 }
 
 function pickReplacementColor(exhaustedColor) {
