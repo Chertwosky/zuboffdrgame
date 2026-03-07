@@ -393,3 +393,21 @@ dialog { border: 1px solid #314072; border-radius: 12px; background: #19213b; co
   .board { width: 100%; }
   .dashboard { grid-template-columns: 1fr; }
 }
+
+
+.task-penalty {
+  margin: .6rem 0 0;
+  color: #ffd6a5;
+  font-weight: 600;
+}
+
+#categoriesEditor {
+  display: grid;
+  gap: .5rem;
+}
+
+#categoriesEditor > div {
+  padding: .55rem;
+  border: 1px solid #30406f;
+  border-radius: 10px;
+}

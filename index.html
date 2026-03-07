@@ -73,8 +73,10 @@
           <p id="taskDescription"></p>
           <img id="taskImage" alt="Изображение задания" hidden />
           <audio id="taskAudio" controls hidden></audio>
+          <p id="taskPenaltyPreview" class="task-penalty" hidden></p>
 
           <div class="task-actions" id="taskActions" hidden>
+            <button id="rerollPenaltyBtn" class="button secondary" type="button">🎲 Реролл штрафа</button>
             <button id="successBtn" class="button">Выполнено (+карточка)</button>
             <button id="failBtn" class="button danger">Не выполнено (штраф)</button>
           </div>
@@ -137,11 +139,8 @@
           <label>Название
             <input type="text" id="cellNameInput" required placeholder="Например: Лесная поляна" />
           </label>
-          <label>Цвет
-            <input type="color" id="cellColorInput" value="#c792ea" required />
-          </label>
           <label>Категория №
-            <input type="number" id="cellCategoryInput" min="1" value="1" required />
+            <select id="cellCategoryInput" required></select>
           </label>
           <label>Стартовая ячейка
             <input type="checkbox" id="cellStartInput" />
@@ -150,9 +149,9 @@
         </form>
 
         <form id="taskForm" class="admin-block">
-          <h3>Добавить задание к цвету</h3>
-          <label>Цвет ячейки
-            <input type="color" id="taskColorSelect" value="#c792ea" required />
+          <h3>Добавить задание к категории</h3>
+          <label>Категория
+            <select id="taskCategorySelect" required></select>
           </label>
           <label>Название задания
             <input type="text" id="taskTitleInput" required />
@@ -160,10 +159,7 @@
           <label>Описание задания
             <textarea id="taskDescriptionInput" rows="3" required></textarea>
           </label>
-          <p class="subtle">За выполненное задание начисляется 1 карточка цвета ячейки.</p>
-          <label>Штрафное задание (текст)
-            <textarea id="taskPenaltyInput" rows="2" required placeholder="Например: Сделайте 10 приседаний."></textarea>
-          </label>
+          <p class="subtle">За выполненное задание начисляется 1 карточка категории ячейки.</p>
           <label>Картинка (URL или data URI)
             <input type="url" id="taskImageInput" placeholder="https://..." />
           </label>
@@ -173,13 +169,66 @@
           <button class="button secondary" type="submit">Добавить задание</button>
         </form>
 
+
+        <form id="penaltyForm" class="admin-block">
+          <h3>Штрафы (отдельная категория)</h3>
+          <label>Новый штраф
+            <textarea id="penaltyInput" rows="2" required placeholder="Например: Сделайте 10 приседаний."></textarea>
+          </label>
+          <button class="button secondary" type="submit">Добавить штраф</button>
+          <ul id="penaltiesList" class="items"></ul>
+        </form>
+
+        <form id="categoriesForm" class="admin-block">
+          <h3>Категории (ровно 4)</h3>
+          <div id="categoriesEditor"></div>
+          <button class="button secondary" type="submit">Сохранить категории</button>
+        </form>
+
+        <form id="mediaSettingsForm" class="admin-block">
+          <h3>Медиа и звуки (полное редактирование)</h3>
+          <p class="subtle">По одному URL на строку. Если в оверлее выбран видеофайл, звук не запускается.</p>
+
+          <label>Успех: видео
+            <textarea id="successVideosInput" rows="3" placeholder="https://..."></textarea>
+          </label>
+          <label>Успех: картинки/гифки
+            <textarea id="successImagesInput" rows="3" placeholder="https://..."></textarea>
+          </label>
+          <label>Успех: звуки
+            <textarea id="successSoundsInput" rows="3" placeholder="https://..."></textarea>
+          </label>
+
+          <label>Провал: видео
+            <textarea id="failVideosInput" rows="3" placeholder="https://..."></textarea>
+          </label>
+          <label>Провал: картинки/гифки
+            <textarea id="failImagesInput" rows="3" placeholder="https://..."></textarea>
+          </label>
+          <label>Провал: звуки
+            <textarea id="failSoundsInput" rows="3" placeholder="https://..."></textarea>
+          </label>
+
+          <label>Звук: бросок кубика
+            <input type="url" id="diceRollLoopInput" placeholder="https://..." />
+          </label>
+          <label>Звук: шаг фишки
+            <input type="url" id="pawnStepInput" placeholder="https://..." />
+          </label>
+          <label>Звук: ожидание ответа
+            <input type="url" id="thinkingLoopInput" placeholder="https://..." />
+          </label>
+
+          <button class="button secondary" type="submit">Сохранить медиа и звуки</button>
+        </form>
+
         <div class="admin-block">
           <h3>Существующие ячейки (перетаскивайте для смены порядка)</h3>
           <ul id="cellsList" class="items"></ul>
         </div>
 
         <div class="admin-block">
-          <h3>Существующие задания</h3>
+          <h3>Существующие задания по категориям</h3>
           <ul id="tasksList" class="items"></ul>
         </div>
 

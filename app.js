@@ -1,4 +1,5 @@
-const STORAGE_KEY = "chip-game-state-v5";
+const STORAGE_KEY = "chip-game-state-v6";
+const CATEGORY_KEYS = ["purple", "red", "blue", "green"];
 
 const CARD_TYPES = {
   purple: { label: "Сиреневые", icon: "🟣" },
@@ -7,14 +8,15 @@ const CARD_TYPES = {
   green: { label: "Зелёные", icon: "🟢" }
 };
 
+const DEFAULT_CATEGORIES = {
+  purple: { name: "Сиреневый", color: "#c792ea" },
+  red: { name: "Красный", color: "#f06292" },
+  blue: { name: "Синий", color: "#64b5f6" },
+  green: { name: "Зелёный", color: "#5dd39e" }
+};
+
 const WIN_TARGET = { purple: 1, red: 2, blue: 3, green: 4 };
 
-const COLOR_TO_CARD = {
-  "#c792ea": "purple",
-  "#f06292": "red",
-  "#64b5f6": "blue",
-  "#5dd39e": "green"
-};
 
 const EXCHANGE_RULES = {
   purpleToRed: { from: "purple", to: "red", fromAmount: 1, toAmount: 2, label: "1 сиреневая → 2 красные" },
@@ -57,30 +59,32 @@ const defaults = {
   stats: { completed: 0, success: 0, fail: 0, streak: 0, bestStreak: 0 },
   history: [],
   pawn: { shape: "circle", image: "" },
+  categories: structuredClone(DEFAULT_CATEGORIES),
+  penalties: ["Сделайте 5 хлопков над головой.", "Назовите 5 стран за 10 секунд."],
+  feedbackMedia: structuredClone(FEEDBACK_MEDIA),
+  gameplaySounds: structuredClone(GAMEPLAY_SOUNDS),
   cells: [
-    { id: crypto.randomUUID(), name: "Старт", color: "#c792ea", category: 1, isStart: true },
-    { id: crypto.randomUUID(), name: "Роща", color: "#5dd39e", category: 2, isStart: false },
-    { id: crypto.randomUUID(), name: "Река", color: "#64b5f6", category: 3, isStart: false },
-    { id: crypto.randomUUID(), name: "Пещера", color: "#f06292", category: 4, isStart: false }
+    { id: crypto.randomUUID(), name: "Старт", categoryKey: "purple", isStart: true },
+    { id: crypto.randomUUID(), name: "Роща", categoryKey: "green", isStart: false },
+    { id: crypto.randomUUID(), name: "Река", categoryKey: "blue", isStart: false },
+    { id: crypto.randomUUID(), name: "Пещера", categoryKey: "red", isStart: false }
   ],
   tasks: [
     {
       id: crypto.randomUUID(),
-      color: "#5dd39e",
+      categoryKey: "green",
       title: "Лесной квест",
       description: "Назовите 3 вида деревьев.",
       points: 1,
-      penalty: "Сделайте 5 хлопков над головой.",
       image: "",
       audio: ""
     },
     {
       id: crypto.randomUUID(),
-      color: "#64b5f6",
+      categoryKey: "blue",
       title: "Речной квест",
       description: "Скажите скороговорку без ошибок.",
       points: 1,
-      penalty: "Назовите 5 стран за 10 секунд.",
       image: "",
       audio: ""
     }
@@ -129,14 +133,27 @@ const ui = {
   pawnImageUpload: document.getElementById("pawnImageUpload"),
   cellForm: document.getElementById("cellForm"),
   cellNameInput: document.getElementById("cellNameInput"),
-  cellColorInput: document.getElementById("cellColorInput"),
   cellCategoryInput: document.getElementById("cellCategoryInput"),
   cellStartInput: document.getElementById("cellStartInput"),
   taskForm: document.getElementById("taskForm"),
-  taskColorSelect: document.getElementById("taskColorSelect"),
+  taskCategorySelect: document.getElementById("taskCategorySelect"),
   taskTitleInput: document.getElementById("taskTitleInput"),
   taskDescriptionInput: document.getElementById("taskDescriptionInput"),
-  taskPenaltyInput: document.getElementById("taskPenaltyInput"),
+  penaltyForm: document.getElementById("penaltyForm"),
+  penaltyInput: document.getElementById("penaltyInput"),
+  penaltiesList: document.getElementById("penaltiesList"),
+  categoriesForm: document.getElementById("categoriesForm"),
+  categoriesEditor: document.getElementById("categoriesEditor"),
+  mediaSettingsForm: document.getElementById("mediaSettingsForm"),
+  successVideosInput: document.getElementById("successVideosInput"),
+  successImagesInput: document.getElementById("successImagesInput"),
+  successSoundsInput: document.getElementById("successSoundsInput"),
+  failVideosInput: document.getElementById("failVideosInput"),
+  failImagesInput: document.getElementById("failImagesInput"),
+  failSoundsInput: document.getElementById("failSoundsInput"),
+  diceRollLoopInput: document.getElementById("diceRollLoopInput"),
+  pawnStepInput: document.getElementById("pawnStepInput"),
+  thinkingLoopInput: document.getElementById("thinkingLoopInput"),
   taskImageInput: document.getElementById("taskImageInput"),
   taskAudioInput: document.getElementById("taskAudioInput"),
   exportStateBtn: document.getElementById("exportStateBtn"),
@@ -152,10 +169,13 @@ const ui = {
   feedbackClose: document.getElementById("feedbackClose"),
   gameWinDialog: document.getElementById("gameWinDialog"),
   winText: document.getElementById("winText"),
-  newGameBtn: document.getElementById("newGameBtn")
+  newGameBtn: document.getElementById("newGameBtn"),
+  rerollPenaltyBtn: document.getElementById("rerollPenaltyBtn"),
+  taskPenaltyPreview: document.getElementById("taskPenaltyPreview")
 };
 
 let currentTask = null;
+let currentPenalty = "";
 let draggingCellId = null;
 let feedbackSound = null;
 let feedbackCloseTimer = null;
@@ -233,15 +253,13 @@ function wireEvents() {
     state.cells.push({
       id: crypto.randomUUID(),
       name: ui.cellNameInput.value.trim(),
-      color: normalizeColor(ui.cellColorInput.value),
-      category: Number(ui.cellCategoryInput.value),
+      categoryKey: ui.cellCategoryInput.value,
       isStart: ui.cellStartInput.checked
     });
 
     if (ui.cellStartInput.checked) state.pawnIndex = state.cells.length - 1;
     ui.cellForm.reset();
-    ui.cellCategoryInput.value = "1";
-    ui.cellColorInput.value = "#c792ea";
+    ui.cellCategoryInput.value = "purple";
     saveAndRender();
   });
 
@@ -249,17 +267,66 @@ function wireEvents() {
     event.preventDefault();
     state.tasks.push({
       id: crypto.randomUUID(),
-      color: normalizeColor(ui.taskColorSelect.value),
+      categoryKey: ui.taskCategorySelect.value,
       title: ui.taskTitleInput.value.trim(),
       description: ui.taskDescriptionInput.value.trim(),
       points: 1,
-      penalty: ui.taskPenaltyInput.value.trim(),
       image: ui.taskImageInput.value.trim(),
       audio: ui.taskAudioInput.value.trim()
     });
 
     ui.taskForm.reset();
-    ui.taskColorSelect.value = "#c792ea";
+    ui.taskCategorySelect.value = "purple";
+    saveAndRender();
+  });
+
+  ui.penaltyForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const penalty = ui.penaltyInput.value.trim();
+    if (!penalty) return;
+    state.penalties.push(penalty);
+    ui.penaltyForm.reset();
+    saveAndRender();
+  });
+
+  ui.rerollPenaltyBtn.addEventListener("click", () => {
+    if (!state.awaitingTaskDecision) return;
+    currentPenalty = getRandomPenalty();
+    renderCurrentPenalty();
+  });
+
+  ui.categoriesForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    CATEGORY_KEYS.forEach((key) => {
+      const nameInput = document.getElementById(`cat-name-${key}`);
+      const colorInput = document.getElementById(`cat-color-${key}`);
+      state.categories[key] = {
+        name: nameInput?.value?.trim() || DEFAULT_CATEGORIES[key].name,
+        color: normalizeColor(colorInput?.value || DEFAULT_CATEGORIES[key].color)
+      };
+    });
+    saveAndRender();
+  });
+
+  ui.mediaSettingsForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    state.feedbackMedia = {
+      success: {
+        videos: parseLines(ui.successVideosInput.value),
+        images: parseLines(ui.successImagesInput.value),
+        sounds: parseLines(ui.successSoundsInput.value)
+      },
+      fail: {
+        videos: parseLines(ui.failVideosInput.value),
+        images: parseLines(ui.failImagesInput.value),
+        sounds: parseLines(ui.failSoundsInput.value)
+      }
+    };
+    state.gameplaySounds = {
+      diceRollLoop: ui.diceRollLoopInput.value.trim(),
+      pawnStep: ui.pawnStepInput.value.trim(),
+      thinkingLoop: ui.thinkingLoopInput.value.trim()
+    };
     saveAndRender();
   });
 
@@ -314,20 +381,12 @@ async function onRollDice() {
   ui.diceResult.textContent = `Выпало ${dice}. ${player?.name || "Игрок"} на ячейке «${cell.name}».`;
   pushHistory(`🎲 Ход ${state.turn} (${player?.name || "Игрок"}): выпало ${dice}, переход на «${cell.name}».`);
 
-  currentTask = pickRandomTaskByColor(cell.color);
+  currentTask = pickRandomTaskByCategory(cell.categoryKey);
+  currentPenalty = getRandomPenalty();
 
   if (!currentTask) {
     stopThinkingLoopSound();
-    const fallbackColor = pickReplacementColor(cell.color);
-    if (fallbackColor) {
-      reassignCategoryColor(cell.category, fallbackColor);
-      const updatedCell = state.cells[state.pawnIndex];
-      pushHistory(`🎨 Категория ${cell.category}: цвет изменён на ${fallbackColor}, так как задания для ${normalizeColor(cell.color)} закончились.`);
-      ui.taskHint.textContent = `Задания для этого цвета закончились. Цвет категории сменён на ${fallbackColor}.`;
-      ui.diceResult.textContent = `Выпало ${dice}. ${player?.name || "Игрок"} на ячейке «${updatedCell.name}». Цвет категории обновлён.`;
-    } else {
-      ui.taskHint.textContent = "Для этого цвета пока нет заданий. Добавьте их в админ-панели.";
-    }
+    ui.taskHint.textContent = "Для этой категории пока нет заданий. Добавьте их в админ-панели.";
     ui.taskTitle.textContent = "";
     ui.taskDescription.textContent = "";
     ui.taskActions.hidden = true;
@@ -338,6 +397,7 @@ async function onRollDice() {
     ui.taskTitle.textContent = currentTask.title;
     ui.taskDescription.textContent = currentTask.description;
     ui.taskActions.hidden = false;
+    renderCurrentPenalty();
     state.awaitingTaskDecision = true;
     startThinkingLoopSound();
   }
@@ -372,8 +432,8 @@ function completeTask(success) {
   } else {
     state.stats.fail += 1;
     state.stats.streak = 0;
-    ui.taskHint.textContent = `Не выполнено. Штраф: ${currentTask.penalty}`;
-    pushHistory(`❌ «${currentTask.title}» не выполнено. Штраф: ${currentTask.penalty}`);
+    ui.taskHint.textContent = `Не выполнено. Штраф: ${currentPenalty}`;
+    pushHistory(`❌ «${currentTask.title}» не выполнено. Штраф: ${currentPenalty}`);
     showPoopFx();
   }
 
@@ -388,10 +448,10 @@ function completeTask(success) {
 
 function showFeedbackOverlay(success) {
   const mode = success ? "success" : "fail";
-  const mediaSet = FEEDBACK_MEDIA[mode];
+  const mediaSet = state.feedbackMedia?.[mode] || FEEDBACK_MEDIA[mode];
   const text = success
     ? "Классно! Так держать!"
-    : `Не страшно. Следующее задание точно получится. ${currentTask?.penalty || ""}`;
+    : `Не страшно. Следующее задание точно получится. ${currentPenalty || ""}`;
 
   ui.feedbackOverlay.hidden = false;
   ui.feedbackClose.onclick = closeFeedbackOverlay;
@@ -400,8 +460,8 @@ function showFeedbackOverlay(success) {
   ui.feedbackTitle.textContent = success ? "Успех!" : "Промах";
   ui.feedbackText.textContent = text;
 
-  presentFeedbackVisual(mediaSet);
-  playFeedbackSound(mediaSet.sounds, success);
+  const withVideo = presentFeedbackVisual(mediaSet);
+  if (!withVideo) playFeedbackSound(mediaSet.sounds, success);
 
   if (feedbackCloseTimer) clearTimeout(feedbackCloseTimer);
   feedbackCloseTimer = setTimeout(closeFeedbackOverlay, 12000);
@@ -428,10 +488,11 @@ function presentFeedbackVisual(mediaSet) {
       ui.feedbackVideo.hidden = true;
       showFeedbackImage(imageSrc);
     });
-    return;
+    return true;
   }
 
   showFeedbackImage(imageSrc);
+  return false;
 }
 
 function showFeedbackImage(src) {
@@ -491,10 +552,14 @@ function renderAll() {
   renderLegend();
   renderAdminLists();
   renderHistory();
-  renderTaskColorSelect();
+  renderCategorySelects();
+  renderCategoriesEditor();
+  renderPenaltiesList();
+  renderMediaSettings();
   renderPlayers();
   renderPlayersAdmin();
   renderExchangePlayers();
+  renderCurrentPenalty();
   applyTaskMedia(currentTask);
   ui.pawnShapeSelect.value = state.pawn?.shape || "circle";
   ui.soundToggleBtn.textContent = state.soundEnabled ? "🔊 Звук включён" : "🔇 Звук выключен";
@@ -541,9 +606,9 @@ function renderBoard() {
     node.dataset.cellId = cell.id;
     node.style.left = `${points[index].x}%`;
     node.style.top = `${points[index].y}%`;
-    node.style.background = cell.color;
-    node.title = `${cell.name}: цвет ${cell.color}, категория ${cell.category}`;
-    node.innerHTML = `<span>${cell.name}</span>`;
+    const cat = state.categories?.[cell.categoryKey] || DEFAULT_CATEGORIES.purple;
+    node.style.background = cat.color;
+    node.title = `${cell.name}: ${cat.name}`;
 
     if (cell.isStart) node.classList.add("start");
 
@@ -564,19 +629,30 @@ function renderBoard() {
 
 function renderLegend() {
   ui.categoryLegend.innerHTML = "";
-  state.cells.forEach((cell, index) => {
+  CATEGORY_KEYS.forEach((key, index) => {
+    const category = state.categories?.[key] || DEFAULT_CATEGORIES[key];
     const item = document.createElement("div");
     item.className = "legend-item";
-    item.innerHTML = `<i style="background:${cell.color}"></i>${index + 1}. ${cell.name} — ${cell.color}, категория ${cell.category}`;
+    item.innerHTML = `<i style="background:${category.color}"></i>${index + 1}. ${category.name}`;
     ui.categoryLegend.appendChild(item);
   });
 }
 
-function renderTaskColorSelect() {
-  const uniqueColors = [...new Set(state.cells.map((cell) => normalizeColor(cell.color)))];
-  if (!ui.taskColorSelect.value && uniqueColors.length) {
-    ui.taskColorSelect.value = uniqueColors[0];
-  }
+function renderCategorySelects() {
+  ui.cellCategoryInput.innerHTML = "";
+  ui.taskCategorySelect.innerHTML = "";
+  CATEGORY_KEYS.forEach((key, index) => {
+    const category = state.categories?.[key] || DEFAULT_CATEGORIES[key];
+    const text = `${index + 1}. ${category.name}`;
+    const opt1 = document.createElement("option");
+    opt1.value = key;
+    opt1.textContent = text;
+    const opt2 = opt1.cloneNode(true);
+    ui.cellCategoryInput.appendChild(opt1);
+    ui.taskCategorySelect.appendChild(opt2);
+  });
+  if (!ui.cellCategoryInput.value) ui.cellCategoryInput.value = "purple";
+  if (!ui.taskCategorySelect.value) ui.taskCategorySelect.value = "purple";
 }
 
 function renderAdminLists() {
@@ -585,7 +661,8 @@ function renderAdminLists() {
     const li = document.createElement("li");
     li.draggable = true;
     li.dataset.cellId = cell.id;
-    li.textContent = `${cell.name} (${cell.color}) → категория ${cell.category}${cell.isStart ? " — СТАРТ" : ""}`;
+    const category = state.categories?.[cell.categoryKey] || DEFAULT_CATEGORIES.purple;
+    li.textContent = `${cell.name} (${category.name})${cell.isStart ? " — СТАРТ" : ""}`;
     li.addEventListener("dragstart", () => (draggingCellId = cell.id));
     li.addEventListener("dragover", (event) => event.preventDefault());
     li.addEventListener("drop", () => reorderCells(draggingCellId, cell.id));
@@ -593,9 +670,20 @@ function renderAdminLists() {
   });
 
   ui.tasksList.innerHTML = "";
-  state.tasks.forEach((task) => {
+  state.tasks.forEach((task, idx) => {
     const li = document.createElement("li");
-    li.textContent = `[${task.color}] ${task.title} • +${task.points} очков`;
+    const category = state.categories?.[task.categoryKey] || DEFAULT_CATEGORIES.purple;
+    li.textContent = `[${category.name}] ${task.title} • +${task.points} карточка`;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "button ghost";
+    btn.textContent = "Удалить";
+    btn.addEventListener("click", () => {
+      state.tasks.splice(idx, 1);
+      saveAndRender();
+    });
+    li.appendChild(document.createTextNode(" "));
+    li.appendChild(btn);
     ui.tasksList.appendChild(li);
   });
 }
@@ -652,7 +740,7 @@ function advancePlayerTurn() {
 }
 
 function getCardTypeByTask(task) {
-  return COLOR_TO_CARD[normalizeColor(task?.color || "")];
+  return task?.categoryKey || "purple";
 }
 
 function makeEmptyCards() {
@@ -693,7 +781,7 @@ async function animateDiceRoll(finalValue) {
 
 async function animatePawnRoute(route) {
   for (const nextIndex of route) {
-    playSoundEffect(GAMEPLAY_SOUNDS.pawnStep, 0.35);
+    playSoundEffect(state.gameplaySounds?.pawnStep, 0.35);
     state.pawnIndex = nextIndex;
     renderBoard();
     await wait(240);
@@ -701,9 +789,9 @@ async function animatePawnRoute(route) {
 }
 
 function startDiceRollLoopSound() {
-  if (!state.soundEnabled || !GAMEPLAY_SOUNDS.diceRollLoop) return;
+  if (!state.soundEnabled || !state.gameplaySounds?.diceRollLoop) return;
   if (!diceRollLoopSound) {
-    diceRollLoopSound = new Audio(GAMEPLAY_SOUNDS.diceRollLoop);
+    diceRollLoopSound = new Audio(state.gameplaySounds?.diceRollLoop);
     diceRollLoopSound.loop = true;
     diceRollLoopSound.volume = 0.35;
   }
@@ -730,9 +818,9 @@ function playSoundEffect(src, volume = 0.4) {
 }
 
 function startThinkingLoopSound() {
-  if (!state.soundEnabled || !GAMEPLAY_SOUNDS.thinkingLoop) return;
+  if (!state.soundEnabled || !state.gameplaySounds?.thinkingLoop) return;
   if (!thinkingLoopSound) {
-    thinkingLoopSound = new Audio(GAMEPLAY_SOUNDS.thinkingLoop);
+    thinkingLoopSound = new Audio(state.gameplaySounds?.thinkingLoop);
     thinkingLoopSound.loop = true;
     thinkingLoopSound.volume = 0.28;
   }
@@ -917,23 +1005,78 @@ function pickRandom(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-function pickRandomTaskByColor(color) {
-  const normalizedColor = normalizeColor(color);
-  const colorTasks = state.tasks.filter((task) => normalizeColor(task.color) === normalizedColor);
-  return pickRandom(colorTasks) || null;
+
+
+
+function pickRandomTaskByCategory(categoryKey) {
+  const categoryTasks = state.tasks.filter((task) => task.categoryKey === categoryKey);
+  return pickRandom(categoryTasks) || null;
 }
 
-function pickReplacementColor(exhaustedColor) {
-  const exhausted = normalizeColor(exhaustedColor);
-  const colorsWithTasks = [...new Set(state.tasks.map((task) => normalizeColor(task.color)))];
-  const remainingColors = colorsWithTasks.filter((color) => color !== exhausted);
-  return pickRandom(remainingColors);
+function getRandomPenalty() {
+  return pickRandom(state.penalties) || "Без штрафа";
 }
 
-function reassignCategoryColor(category, newColor) {
-  state.cells.forEach((cell) => {
-    if (cell.category === category) cell.color = normalizeColor(newColor);
+function renderCurrentPenalty() {
+  const shouldShow = Boolean(state.awaitingTaskDecision && currentTask);
+  ui.taskPenaltyPreview.hidden = !shouldShow;
+  if (shouldShow) {
+    ui.taskPenaltyPreview.textContent = `Случайный штраф: ${currentPenalty || "—"}`;
+  }
+}
+
+function renderPenaltiesList() {
+  ui.penaltiesList.innerHTML = "";
+  state.penalties.forEach((penalty, idx) => {
+    const li = document.createElement("li");
+    li.textContent = penalty;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "button ghost";
+    btn.textContent = "Удалить";
+    btn.addEventListener("click", () => {
+      state.penalties.splice(idx, 1);
+      saveAndRender();
+    });
+    li.appendChild(document.createTextNode(" "));
+    li.appendChild(btn);
+    ui.penaltiesList.appendChild(li);
   });
+}
+
+function renderCategoriesEditor() {
+  ui.categoriesEditor.innerHTML = "";
+  CATEGORY_KEYS.forEach((key, index) => {
+    const category = state.categories?.[key] || DEFAULT_CATEGORIES[key];
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `
+      <label>${index + 1}. Название
+        <input type="text" id="cat-name-${key}" value="${category.name}" required />
+      </label>
+      <label>Цвет
+        <input type="color" id="cat-color-${key}" value="${category.color}" required />
+      </label>
+    `;
+    ui.categoriesEditor.appendChild(wrap);
+  });
+}
+
+function renderMediaSettings() {
+  const fm = state.feedbackMedia || FEEDBACK_MEDIA;
+  ui.successVideosInput.value = (fm.success?.videos || []).join("\n");
+  ui.successImagesInput.value = (fm.success?.images || []).join("\n");
+  ui.successSoundsInput.value = (fm.success?.sounds || []).join("\n");
+  ui.failVideosInput.value = (fm.fail?.videos || []).join("\n");
+  ui.failImagesInput.value = (fm.fail?.images || []).join("\n");
+  ui.failSoundsInput.value = (fm.fail?.sounds || []).join("\n");
+
+  ui.diceRollLoopInput.value = state.gameplaySounds?.diceRollLoop || "";
+  ui.pawnStepInput.value = state.gameplaySounds?.pawnStep || "";
+  ui.thinkingLoopInput.value = state.gameplaySounds?.thinkingLoop || "";
+}
+
+function parseLines(text) {
+  return String(text || "").split("\n").map((line) => line.trim()).filter(Boolean);
 }
 
 function normalizeColor(color) {
@@ -978,15 +1121,47 @@ function sanitizeState(parsed) {
       }))
     : structuredClone(defaults.players);
 
+  const categories = { ...structuredClone(DEFAULT_CATEGORIES), ...(parsed?.categories || {}) };
+  const cells = (parsed?.cells?.length ? parsed.cells : structuredClone(defaults.cells)).map((cell, idx) => {
+    const fromLegacyColor = Object.entries(categories).find(([, c]) => normalizeColor(c.color) === normalizeColor(cell?.color || ""))?.[0];
+    return {
+      id: cell?.id || crypto.randomUUID(),
+      name: cell?.name || `Ячейка ${idx + 1}`,
+      categoryKey: cell?.categoryKey || fromLegacyColor || CATEGORY_KEYS[(Math.max(1, Number(cell?.category || 1)) - 1) % 4],
+      isStart: Boolean(cell?.isStart)
+    };
+  });
+
+  const tasks = Array.isArray(parsed?.tasks) ? parsed.tasks.map((task) => {
+    const fromLegacyColor = Object.entries(categories).find(([, c]) => normalizeColor(c.color) === normalizeColor(task?.color || ""))?.[0];
+    return {
+      id: task?.id || crypto.randomUUID(),
+      categoryKey: task?.categoryKey || fromLegacyColor || "purple",
+      title: task?.title || "Без названия",
+      description: task?.description || "",
+      points: 1,
+      image: task?.image || "",
+      audio: task?.audio || ""
+    };
+  }) : structuredClone(defaults.tasks);
+
+  const penalties = Array.isArray(parsed?.penalties)
+    ? parsed.penalties.filter(Boolean)
+    : (Array.isArray(parsed?.tasks) ? parsed.tasks.map((t) => t?.penalty).filter(Boolean) : structuredClone(defaults.penalties));
+
   return {
     ...structuredClone(defaults),
     ...parsed,
+    categories,
+    penalties,
+    feedbackMedia: { ...structuredClone(FEEDBACK_MEDIA), ...(parsed?.feedbackMedia || {}) },
+    gameplaySounds: { ...structuredClone(GAMEPLAY_SOUNDS), ...(parsed?.gameplaySounds || {}) },
     players: sanitizedPlayers,
     currentPlayerIndex: clamp(parsed?.currentPlayerIndex ?? 0, 0, Math.max(0, sanitizedPlayers.length - 1)),
     pawn: { ...structuredClone(defaults.pawn), ...parsed?.pawn },
     stats: { ...structuredClone(defaults.stats), ...parsed?.stats },
-    cells: parsed?.cells?.length ? parsed.cells : structuredClone(defaults.cells),
-    tasks: Array.isArray(parsed?.tasks) ? parsed.tasks : structuredClone(defaults.tasks),
+    cells,
+    tasks,
     history: Array.isArray(parsed?.history) ? parsed.history.slice(0, 14) : []
   };
 }
