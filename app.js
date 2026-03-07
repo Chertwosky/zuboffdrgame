@@ -32,8 +32,8 @@ const FEEDBACK_MEDIA = {
     sounds: ["media/sounds/success/success-1.mp3", "media/sounds/success/success-2.mp3", "media/sounds/success/success-3.mp3"]
   },
   fail: {
-    videos: ["media/video/fail/fail-1.mp4", "media/video/fail/fail-2.mp4"],
-    images: ["media/images/fail/fail-1.jpg", "media/images/fail/fail-2.jpg"],
+    videos: ["media/video/success/success-1.mp4", "media/video/success/success-2.mp4"],
+    images: ["media/images/success/success-1.jpg", "media/images/success/success-2.jpg"],
     sounds: ["media/sounds/fail/fail-1.mp3", "media/sounds/fail/fail-2.mp3", "media/sounds/fail/fail-3.mp3"]
   }
 };
@@ -323,15 +323,17 @@ function wireEvents() {
 
   ui.mediaSettingsForm.addEventListener("submit", (event) => {
     event.preventDefault();
+    const sharedVideos = parseLines(ui.successVideosInput.value);
+    const sharedImages = parseLines(ui.successImagesInput.value);
     state.feedbackMedia = {
       success: {
-        videos: parseLines(ui.successVideosInput.value),
-        images: parseLines(ui.successImagesInput.value),
+        videos: sharedVideos,
+        images: sharedImages,
         sounds: parseLines(ui.successSoundsInput.value)
       },
       fail: {
-        videos: parseLines(ui.failVideosInput.value),
-        images: parseLines(ui.failImagesInput.value),
+        videos: sharedVideos,
+        images: sharedImages,
         sounds: parseLines(ui.failSoundsInput.value)
       }
     };
@@ -468,7 +470,7 @@ function completeTask(success) {
 
 function showFeedbackOverlay(success) {
   const mode = success ? "success" : "fail";
-  const mediaSet = state.feedbackMedia?.[mode] || FEEDBACK_MEDIA[mode];
+  const mediaSet = getNormalizedFeedbackMedia(state.feedbackMedia)?.[mode] || FEEDBACK_MEDIA[mode];
   const text = success
     ? "Классно! Так держать!"
     : `Не страшно. Следующее задание точно получится. ${currentPenalty || ""}`;
@@ -1113,7 +1115,7 @@ function renderCategoriesEditor() {
 }
 
 function renderMediaSettings() {
-  const fm = state.feedbackMedia || FEEDBACK_MEDIA;
+  const fm = getNormalizedFeedbackMedia(state.feedbackMedia);
   ui.successVideosInput.value = (fm.success?.videos || []).join("\n");
   ui.successImagesInput.value = (fm.success?.images || []).join("\n");
   ui.successSoundsInput.value = (fm.success?.sounds || []).join("\n");
@@ -1128,6 +1130,33 @@ function renderMediaSettings() {
 
 function parseLines(text) {
   return String(text || "").split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+function getNormalizedFeedbackMedia(feedbackMedia = FEEDBACK_MEDIA) {
+  const fallback = structuredClone(FEEDBACK_MEDIA);
+  const success = {
+    ...fallback.success,
+    ...(feedbackMedia?.success || {})
+  };
+  const fail = {
+    ...fallback.fail,
+    ...(feedbackMedia?.fail || {})
+  };
+  const sharedVideos = Array.isArray(success.videos) ? success.videos : fallback.success.videos;
+  const sharedImages = Array.isArray(success.images) ? success.images : fallback.success.images;
+
+  return {
+    success: {
+      videos: sharedVideos,
+      images: sharedImages,
+      sounds: Array.isArray(success.sounds) ? success.sounds : fallback.success.sounds
+    },
+    fail: {
+      videos: sharedVideos,
+      images: sharedImages,
+      sounds: Array.isArray(fail.sounds) ? fail.sounds : fallback.fail.sounds
+    }
+  };
 }
 
 function normalizeColor(color) {
@@ -1215,7 +1244,7 @@ function sanitizeState(parsed) {
     ...parsed,
     categories,
     penalties,
-    feedbackMedia: { ...structuredClone(FEEDBACK_MEDIA), ...(parsed?.feedbackMedia || {}) },
+    feedbackMedia: getNormalizedFeedbackMedia({ ...structuredClone(FEEDBACK_MEDIA), ...(parsed?.feedbackMedia || {}) }),
     gameplaySounds: { ...structuredClone(GAMEPLAY_SOUNDS), ...(parsed?.gameplaySounds || {}) },
     players: sanitizedPlayers,
     currentPlayerIndex: clamp(parsed?.currentPlayerIndex ?? 0, 0, Math.max(0, sanitizedPlayers.length - 1)),
