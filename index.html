@@ -167,6 +167,20 @@
             <input type="url" id="taskAudioInput" placeholder="https://..." />
           </label>
           <button class="button secondary" type="submit">Добавить задание</button>
+
+          <hr />
+          <h4>Массовая загрузка заданий</h4>
+          <p class="subtle">Выберите категорию выше, задайте общий заголовок и вставьте список описаний (по одному на строку) или загрузите XML/TXT файл.</p>
+          <label>Общий заголовок
+            <input type="text" id="taskBulkTitleInput" placeholder="Например: Блиц-вопрос" />
+          </label>
+          <label>Список описаний (по одному на строку)
+            <textarea id="taskBulkInput" rows="5" placeholder="Вопрос 1&#10;Вопрос 2&#10;Вопрос 3"></textarea>
+          </label>
+          <label>Файл (XML или TXT)
+            <input type="file" id="taskBulkFileInput" accept=".xml,.txt,.csv,text/plain,text/xml,application/xml" />
+          </label>
+          <button class="button secondary" id="taskBulkUploadBtn" type="button">Загрузить задания списком</button>
         </form>
 
 
@@ -176,6 +190,16 @@
             <textarea id="penaltyInput" rows="2" required placeholder="Например: Сделайте 10 приседаний."></textarea>
           </label>
           <button class="button secondary" type="submit">Добавить штраф</button>
+
+          <hr />
+          <h4>Массовая загрузка штрафов</h4>
+          <label>Список штрафов (по одному на строку)
+            <textarea id="penaltyBulkInput" rows="4" placeholder="Штраф 1&#10;Штраф 2"></textarea>
+          </label>
+          <label>Файл (XML или TXT)
+            <input type="file" id="penaltyBulkFileInput" accept=".xml,.txt,.csv,text/plain,text/xml,application/xml" />
+          </label>
+          <button class="button secondary" id="penaltyBulkUploadBtn" type="button">Загрузить штрафы списком</button>
           <ul id="penaltiesList" class="items"></ul>
         </form>
 

@@ -144,6 +144,9 @@ const ui = {
   taskDescriptionInput: document.getElementById("taskDescriptionInput"),
   penaltyForm: document.getElementById("penaltyForm"),
   penaltyInput: document.getElementById("penaltyInput"),
+  penaltyBulkInput: document.getElementById("penaltyBulkInput"),
+  penaltyBulkFileInput: document.getElementById("penaltyBulkFileInput"),
+  penaltyBulkUploadBtn: document.getElementById("penaltyBulkUploadBtn"),
   penaltiesList: document.getElementById("penaltiesList"),
   categoriesForm: document.getElementById("categoriesForm"),
   categoriesEditor: document.getElementById("categoriesEditor"),
@@ -165,6 +168,10 @@ const ui = {
   thinkingLoopInput: document.getElementById("thinkingLoopInput"),
   taskImageInput: document.getElementById("taskImageInput"),
   taskAudioInput: document.getElementById("taskAudioInput"),
+  taskBulkTitleInput: document.getElementById("taskBulkTitleInput"),
+  taskBulkInput: document.getElementById("taskBulkInput"),
+  taskBulkFileInput: document.getElementById("taskBulkFileInput"),
+  taskBulkUploadBtn: document.getElementById("taskBulkUploadBtn"),
   exportStateBtn: document.getElementById("exportStateBtn"),
   importStateInput: document.getElementById("importStateInput"),
   resetStateBtn: document.getElementById("resetStateBtn"),
@@ -291,12 +298,50 @@ function wireEvents() {
     saveAndRender();
   });
 
+  ui.taskBulkUploadBtn.addEventListener("click", async () => {
+    const linesFromTextarea = parseLines(ui.taskBulkInput.value);
+    const linesFromFile = await parseBulkFileLines(ui.taskBulkFileInput.files?.[0]);
+    const descriptions = dedupeLines([...linesFromTextarea, ...linesFromFile]);
+    if (!descriptions.length) return;
+
+    const sharedTitle = ui.taskBulkTitleInput.value.trim() || "Вопрос";
+    const categoryKey = ui.taskCategorySelect.value || "purple";
+
+    descriptions.forEach((description) => {
+      state.tasks.push({
+        id: crypto.randomUUID(),
+        categoryKey,
+        title: sharedTitle,
+        description,
+        points: 1,
+        image: "",
+        audio: ""
+      });
+    });
+
+    ui.taskBulkInput.value = "";
+    if (ui.taskBulkFileInput) ui.taskBulkFileInput.value = "";
+    saveAndRender();
+  });
+
   ui.penaltyForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const penalty = ui.penaltyInput.value.trim();
     if (!penalty) return;
     state.penalties.push(penalty);
     ui.penaltyForm.reset();
+    saveAndRender();
+  });
+
+  ui.penaltyBulkUploadBtn.addEventListener("click", async () => {
+    const linesFromTextarea = parseLines(ui.penaltyBulkInput.value);
+    const linesFromFile = await parseBulkFileLines(ui.penaltyBulkFileInput.files?.[0]);
+    const penalties = dedupeLines([...linesFromTextarea, ...linesFromFile]);
+    if (!penalties.length) return;
+
+    state.penalties.push(...penalties);
+    ui.penaltyBulkInput.value = "";
+    if (ui.penaltyBulkFileInput) ui.penaltyBulkFileInput.value = "";
     saveAndRender();
   });
 
@@ -709,21 +754,39 @@ function renderAdminLists() {
   });
 
   ui.tasksList.innerHTML = "";
-  state.tasks.forEach((task, idx) => {
-    const li = document.createElement("li");
-    const category = state.categories?.[task.categoryKey] || DEFAULT_CATEGORIES.purple;
-    li.textContent = `[${category.name}] ${task.title} • +${task.points} карточка`;
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "button ghost";
-    btn.textContent = "Удалить";
-    btn.addEventListener("click", () => {
-      state.tasks.splice(idx, 1);
-      saveAndRender();
+  CATEGORY_KEYS.forEach((categoryKey) => {
+    const category = state.categories?.[categoryKey] || DEFAULT_CATEGORIES[categoryKey];
+    const groupHeader = document.createElement("li");
+    groupHeader.innerHTML = `<strong>${category.name}</strong>`;
+    ui.tasksList.appendChild(groupHeader);
+
+    const tasksInCategory = state.tasks
+      .map((task, idx) => ({ task, idx }))
+      .filter(({ task }) => task.categoryKey === categoryKey);
+
+    if (!tasksInCategory.length) {
+      const empty = document.createElement("li");
+      empty.className = "subtle";
+      empty.textContent = "— пока пусто";
+      ui.tasksList.appendChild(empty);
+      return;
+    }
+
+    tasksInCategory.forEach(({ task, idx }) => {
+      const li = document.createElement("li");
+      li.textContent = `${task.title}: ${task.description} • +${task.points} карточка`;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "button ghost";
+      btn.textContent = "Удалить";
+      btn.addEventListener("click", () => {
+        state.tasks.splice(idx, 1);
+        saveAndRender();
+      });
+      li.appendChild(document.createTextNode(" "));
+      li.appendChild(btn);
+      ui.tasksList.appendChild(li);
     });
-    li.appendChild(document.createTextNode(" "));
-    li.appendChild(btn);
-    ui.tasksList.appendChild(li);
   });
 }
 
@@ -1045,7 +1108,29 @@ function pickRandom(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
+function dedupeLines(lines) {
+  return [...new Set((lines || []).map((line) => line.trim()).filter(Boolean))];
+}
 
+async function parseBulkFileLines(file) {
+  if (!file) return [];
+  const content = await file.text();
+  if (!content.trim()) return [];
+
+  const fileName = (file.name || "").toLowerCase();
+  const isXml = fileName.endsWith(".xml") || content.trim().startsWith("<");
+  if (!isXml) return parseLines(content);
+
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(content, "application/xml");
+  if (xmlDoc.querySelector("parsererror")) return parseLines(content);
+
+  const nodes = xmlDoc.querySelectorAll("item, question, q, penalty, p, line, entry");
+  if (nodes.length) return [...nodes].map((n) => n.textContent || "");
+
+  const textNodes = [...xmlDoc.documentElement.children].map((n) => n.textContent || "");
+  return textNodes.length ? textNodes : parseLines(content);
+}
 
 
 function pickRandomTaskByCategory(categoryKey) {
