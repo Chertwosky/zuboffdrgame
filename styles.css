@@ -370,6 +370,19 @@ input, textarea, select {
 .items li { font-size: .86rem; padding: .45rem; border-radius: 8px; background: #151b30; border: 1px solid #2f3a64; cursor: grab; }
 .subtle { color: var(--muted); margin-top: -.2rem; }
 
+.upload-row {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  margin: -.2rem 0 .6rem;
+  flex-wrap: wrap;
+}
+
+.upload-row input[type="file"] {
+  flex: 1;
+  min-width: 220px;
+}
+
 .admin-actions-inline {
   display: flex;
   flex-wrap: wrap;

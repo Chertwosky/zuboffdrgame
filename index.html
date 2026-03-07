@@ -187,27 +187,51 @@
 
         <form id="mediaSettingsForm" class="admin-block">
           <h3>Медиа и звуки (полное редактирование)</h3>
-          <p class="subtle">По одному URL на строку. Если в оверлее выбран видеофайл, звук не запускается.</p>
+          <p class="subtle">По одному URL/Data URI на строку. Можно вставлять ссылки или загружать файлы прямо здесь.</p>
 
           <label>Успех: видео
             <textarea id="successVideosInput" rows="3" placeholder="https://..."></textarea>
           </label>
+          <div class="upload-row">
+            <input type="file" id="successVideosUpload" accept="video/*" multiple />
+            <button class="button ghost" id="addSuccessVideosBtn" type="button">Добавить загруженные видео</button>
+          </div>
           <label>Успех: картинки/гифки
             <textarea id="successImagesInput" rows="3" placeholder="https://..."></textarea>
           </label>
+          <div class="upload-row">
+            <input type="file" id="successImagesUpload" accept="image/*" multiple />
+            <button class="button ghost" id="addSuccessImagesBtn" type="button">Добавить загруженные картинки/гифки</button>
+          </div>
           <label>Успех: звуки
             <textarea id="successSoundsInput" rows="3" placeholder="https://..."></textarea>
           </label>
+          <div class="upload-row">
+            <input type="file" id="successSoundsUpload" accept="audio/*" multiple />
+            <button class="button ghost" id="addSuccessSoundsBtn" type="button">Добавить загруженные звуки</button>
+          </div>
 
           <label>Провал: видео
             <textarea id="failVideosInput" rows="3" placeholder="https://..."></textarea>
           </label>
+          <div class="upload-row">
+            <input type="file" id="failVideosUpload" accept="video/*" multiple />
+            <button class="button ghost" id="addFailVideosBtn" type="button">Добавить загруженные видео</button>
+          </div>
           <label>Провал: картинки/гифки
             <textarea id="failImagesInput" rows="3" placeholder="https://..."></textarea>
           </label>
+          <div class="upload-row">
+            <input type="file" id="failImagesUpload" accept="image/*" multiple />
+            <button class="button ghost" id="addFailImagesBtn" type="button">Добавить загруженные картинки/гифки</button>
+          </div>
           <label>Провал: звуки
             <textarea id="failSoundsInput" rows="3" placeholder="https://..."></textarea>
           </label>
+          <div class="upload-row">
+            <input type="file" id="failSoundsUpload" accept="audio/*" multiple />
+            <button class="button ghost" id="addFailSoundsBtn" type="button">Добавить загруженные звуки</button>
+          </div>
 
           <label>Звук: бросок кубика
             <input type="url" id="diceRollLoopInput" placeholder="https://..." />
