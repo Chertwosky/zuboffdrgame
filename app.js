@@ -151,6 +151,18 @@ const ui = {
   failVideosInput: document.getElementById("failVideosInput"),
   failImagesInput: document.getElementById("failImagesInput"),
   failSoundsInput: document.getElementById("failSoundsInput"),
+  successVideosUpload: document.getElementById("successVideosUpload"),
+  successImagesUpload: document.getElementById("successImagesUpload"),
+  successSoundsUpload: document.getElementById("successSoundsUpload"),
+  failVideosUpload: document.getElementById("failVideosUpload"),
+  failImagesUpload: document.getElementById("failImagesUpload"),
+  failSoundsUpload: document.getElementById("failSoundsUpload"),
+  addSuccessVideosBtn: document.getElementById("addSuccessVideosBtn"),
+  addSuccessImagesBtn: document.getElementById("addSuccessImagesBtn"),
+  addSuccessSoundsBtn: document.getElementById("addSuccessSoundsBtn"),
+  addFailVideosBtn: document.getElementById("addFailVideosBtn"),
+  addFailImagesBtn: document.getElementById("addFailImagesBtn"),
+  addFailSoundsBtn: document.getElementById("addFailSoundsBtn"),
   diceRollLoopInput: document.getElementById("diceRollLoopInput"),
   pawnStepInput: document.getElementById("pawnStepInput"),
   thinkingLoopInput: document.getElementById("thinkingLoopInput"),
@@ -178,6 +190,7 @@ let currentTask = null;
 let currentPenalty = "";
 let draggingCellId = null;
 let feedbackSound = null;
+let feedbackVideoSound = null;
 let feedbackCloseTimer = null;
 let diceRollLoopSound = null;
 let thinkingLoopSound = null;
@@ -330,6 +343,13 @@ function wireEvents() {
     saveAndRender();
   });
 
+  ui.addSuccessVideosBtn.addEventListener("click", () => appendUploadedFiles(ui.successVideosUpload, ui.successVideosInput));
+  ui.addSuccessImagesBtn.addEventListener("click", () => appendUploadedFiles(ui.successImagesUpload, ui.successImagesInput));
+  ui.addSuccessSoundsBtn.addEventListener("click", () => appendUploadedFiles(ui.successSoundsUpload, ui.successSoundsInput));
+  ui.addFailVideosBtn.addEventListener("click", () => appendUploadedFiles(ui.failVideosUpload, ui.failVideosInput));
+  ui.addFailImagesBtn.addEventListener("click", () => appendUploadedFiles(ui.failImagesUpload, ui.failImagesInput));
+  ui.addFailSoundsBtn.addEventListener("click", () => appendUploadedFiles(ui.failSoundsUpload, ui.failSoundsInput));
+
   ui.newGameBtn.addEventListener("click", () => {
     state.turn = 0;
     state.currentPlayerIndex = 0;
@@ -460,45 +480,74 @@ function showFeedbackOverlay(success) {
   ui.feedbackTitle.textContent = success ? "Успех!" : "Промах";
   ui.feedbackText.textContent = text;
 
-  const withVideo = presentFeedbackVisual(mediaSet);
-  if (!withVideo) playFeedbackSound(mediaSet.sounds, success);
+  const visualMode = presentFeedbackVisual(mediaSet);
+  if (visualMode === "video") {
+    if (feedbackSound) {
+      feedbackSound.pause();
+      feedbackSound = null;
+    }
+  } else {
+    playFeedbackSound(mediaSet.sounds, success);
+  }
 
   if (feedbackCloseTimer) clearTimeout(feedbackCloseTimer);
   feedbackCloseTimer = setTimeout(closeFeedbackOverlay, 12000);
 }
 
 function presentFeedbackVisual(mediaSet) {
-  const prefersVideo = Math.random() > 0.35;
+  const wantsImage = Math.random() > 0.45;
   const videoSrc = pickRandom(mediaSet.videos);
   const imageSrc = pickRandom(mediaSet.images);
 
+  stopFeedbackVideoSound();
   ui.feedbackVideo.pause();
   ui.feedbackVideo.hidden = true;
   ui.feedbackImage.hidden = true;
   ui.feedbackVideo.removeAttribute("src");
 
-  if (prefersVideo && videoSrc) {
+  if (!wantsImage && videoSrc) {
     ui.feedbackVideo.src = videoSrc;
-    ui.feedbackVideo.loop = false;
-    ui.feedbackVideo.volume = 0.8;
+    ui.feedbackVideo.loop = true;
+    ui.feedbackVideo.volume = 0;
+    ui.feedbackVideo.muted = true;
     ui.feedbackVideo.currentTime = 0;
     ui.feedbackVideo.hidden = false;
-    ui.feedbackVideo.muted = false;
-    ui.feedbackVideo.play().catch(() => {
+    ui.feedbackVideo.play().then(() => {
+      startFeedbackVideoOneShotSound(videoSrc);
+    }).catch(() => {
       ui.feedbackVideo.hidden = true;
       showFeedbackImage(imageSrc);
     });
-    return true;
+    return "video";
   }
 
   showFeedbackImage(imageSrc);
-  return false;
+  return "image";
 }
 
 function showFeedbackImage(src) {
   if (!src) return;
   ui.feedbackImage.src = src;
   ui.feedbackImage.hidden = false;
+}
+
+async function startFeedbackVideoOneShotSound(videoSrc) {
+  if (!state.soundEnabled || !videoSrc) return;
+  stopFeedbackVideoSound();
+  feedbackVideoSound = new Audio(videoSrc);
+  feedbackVideoSound.volume = 0.55;
+  try {
+    await feedbackVideoSound.play();
+  } catch {
+    feedbackVideoSound = null;
+  }
+}
+
+function stopFeedbackVideoSound() {
+  if (!feedbackVideoSound) return;
+  feedbackVideoSound.pause();
+  feedbackVideoSound.currentTime = 0;
+  feedbackVideoSound = null;
 }
 
 function playFeedbackSound(soundList, isGood) {
@@ -534,6 +583,7 @@ function closeFeedbackOverlay() {
     feedbackSound.pause();
     feedbackSound = null;
   }
+  stopFeedbackVideoSound();
 }
 
 function checkWin() {
@@ -933,6 +983,7 @@ function toggleSound() {
   if (!state.soundEnabled) {
     stopDiceRollLoopSound();
     stopThinkingLoopSound();
+    stopFeedbackVideoSound();
   } else if (state.awaitingTaskDecision) {
     startThinkingLoopSound();
   }
@@ -1089,6 +1140,16 @@ function clamp(value, min, max) {
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function appendUploadedFiles(fileInput, targetTextarea) {
+  const files = Array.from(fileInput?.files || []);
+  if (!files.length || !targetTextarea) return;
+
+  const encoded = await Promise.all(files.map((file) => toDataUri(file)));
+  const existing = parseLines(targetTextarea.value);
+  targetTextarea.value = [...existing, ...encoded].join("\n");
+  fileInput.value = "";
 }
 
 function toDataUri(file) {
